@@ -1,0 +1,8 @@
+{
+  "name": "Remix  ModelOS - Synthetic Data Generator",
+  "description": "Enterprise Multi-Domain \u0026 Multi-Modal Synthetic Data Workbench with 5-Stage Automated Generation Pipeline Execution Canvas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
