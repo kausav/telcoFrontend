@@ -4058,41 +4058,38 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 </div>
               )}
 
-              {/* Download Section (Moved after Execute Engine) */}
-              <div className="bg-white p-2 rounded-md border border-[#E5DFD3] flex items-center justify-between gap-2 shadow-2xs">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#E31837] shrink-0" />
-                  <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider shrink-0">
-                    Format:
-                  </span>
+              {/* Download: offered once the data has been generated (CSV or JSON of the returned records) */}
+              {isExecutionComplete && !isExecuting && generated && (
+                <div className="bg-white p-2.5 rounded-md border border-[#E5DFD3] space-y-2 shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#E31837] shrink-0" />
+                    <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">Download Data</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={downloadFormat}
+                      onChange={e => setDownloadFormat(e.target.value as DownloadFormat)}
+                      className="flex-1 min-w-0 p-1.5 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono font-medium text-[#29251D] focus-techm cursor-pointer"
+                      aria-label="Select download data format"
+                    >
+                      <option value="csv">CSV (.csv)</option>
+                      <option value="json">JSON (.json)</option>
+                      {/* DISABLED: Parquet needs a server-side writer; the backend returns JSON records only
+                      <option value="parquet">Parquet (.parquet)</option>
+                      */}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadSyntheticData()}
+                      className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-[#29251D] hover:bg-[#4D4D4F] text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title={`Download the generated records as ${downloadFormat.toUpperCase()}`}
+                    >
+                      <Download className="w-3.5 h-3.5 text-white" />
+                      <span>Download</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 flex-1 justify-end">
-                  <select
-                    value={downloadFormat}
-                    onChange={e => setDownloadFormat(e.target.value as DownloadFormat)}
-                    className="p-1 px-2 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono font-medium text-[#29251D] focus-techm cursor-pointer"
-                    aria-label="Select download data format"
-                  >
-                    <option value="csv">CSV (.csv)</option>
-                    <option value="json">JSON (.json)</option>
-                    {/* DISABLED: Parquet needs a server-side writer; the backend returns JSON records only
-                    <option value="parquet">Parquet (.parquet)</option>
-                    */}
-                    <option value="sql">SQL Dump (.sql)</option>
-                    <option value="ndjson">NDJSON (.ndjson)</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadSyntheticData()}
-                    disabled={!generated}
-                    className="px-2.5 py-1 bg-[#29251D] hover:bg-[#4D4D4F] disabled:opacity-50 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    title={`Download synthetic dataset as ${downloadFormat.toUpperCase()}`}
-                  >
-                    <Download className="w-3 h-3 text-white" />
-                    <span>Download {downloadFormat.toUpperCase()}</span>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           </section>
 
@@ -4210,9 +4207,6 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 >
                   <option value="csv">CSV (.csv)</option>
                   <option value="json">JSON (.json)</option>
-                  <option value="parquet">Parquet (.parquet)</option>
-                  <option value="sql">SQL Dump (.sql)</option>
-                  <option value="ndjson">NDJSON (.ndjson)</option>
                 </select>
                 <button
                   onClick={() => handleDownloadSyntheticData()}

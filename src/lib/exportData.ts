@@ -1,35 +1,13 @@
 import type { ScenarioGenerateResponse } from '../api/types';
 
-export type ExportFormat = 'csv' | 'json' | 'sql' | 'ndjson';
+export type ExportFormat = 'csv' | 'json';
 
 type Row = Record<string, unknown>;
 type GenerateResult = Pick<ScenarioGenerateResponse, 'typeOfData' | 'records' | 'scenario_label' | 'requested_scenario_id' | 'scenario_id'>;
 
-const sqlIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`;
-
-const sqlValue = (value: unknown): string => {
-  if (value === null || value === undefined) return 'NULL';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL';
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
-  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return `'${text.replace(/'/g, "''")}'`;
-};
-
-/** A column's SQL type, from the first non-null value it holds. */
-const sqlType = (rows: Row[], field: string): string => {
-  const sample = rows.find(row => row[field] !== null && row[field] !== undefined)?.[field];
-  if (typeof sample === 'boolean') return 'BOOLEAN';
-  if (typeof sample === 'number') return Number.isInteger(sample) ? 'BIGINT' : 'DOUBLE PRECISION';
-  return 'TEXT';
-};
-
-const tableName = (label: string): string => label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'synthetic_data';
-
 export const EXPORT_MIME: Record<ExportFormat, string> = {
   csv: 'text/csv;charset=utf-8;',
   json: 'application/json',
-  sql: 'application/sql',
-  ndjson: 'application/x-ndjson',
 };
 
 /**
@@ -89,21 +67,7 @@ export function buildExport(format: ExportFormat, result: GenerateResult): strin
   const columns: string[] = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
   if (columns.length === 0) return '';
 
-  switch (format) {
-    case 'csv':
-      return [columns.map(escapeCsvValue).join(','), ...rows.map(row => columns.map(column => escapeCsvValue(row[column])).join(','))].join('\r\n');
-    case 'ndjson':
-      return rows.map(row => JSON.stringify(row)).join('\n');
-    case 'sql': {
-      const label = exportLabel(result);
-      const table = tableName(label);
-      const create = `CREATE TABLE IF NOT EXISTS ${sqlIdent(table)} (\n${columns.map(c => `  ${sqlIdent(c)} ${sqlType(rows, c)}`).join(',\n')}\n);`;
-      const insert = `INSERT INTO ${sqlIdent(table)} (${columns.map(sqlIdent).join(', ')}) VALUES\n${rows
-        .map(row => `  (${columns.map(column => sqlValue(row[column])).join(', ')})`)
-        .join(',\n')};`;
-      return `-- ModelOS synthetic data: ${label}\n${create}\n\n${insert}\n`;
-    }
-  }
+  return [columns.map(escapeCsvValue).join(','), ...rows.map(row => columns.map(column => escapeCsvValue(row[column])).join(','))].join('\r\n');
 }
 
 /** The scenario's name for file names and headings. */

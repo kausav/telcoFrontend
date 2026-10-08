@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, Download, FileJson, Search } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, FileJson, Search } from 'lucide-react';
 import type { ScenarioGenerateResponse } from '../api/types';
-import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from '../lib/exportData';
 import { notify } from '../lib/notify';
 
 type AnyRecord = Record<string, any>;
@@ -45,15 +44,6 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
     });
   }, [allRecords, searchQuery, isTransactional]);
 
-  const exportAs = (format: ExportFormat) => {
-    const text = buildExport(format, result);
-    if (!text) {
-      notify('No records available to export.', 'warning');
-      return;
-    }
-    downloadText(exportFileName(format, result), text, EXPORT_MIME[format]);
-  };
-
   return (
     <div className="space-y-3">
       {result.errors?.length > 0 && (
@@ -71,7 +61,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
       )}
 
       <div className="bg-white rounded-md border border-[#E5DFD3] shadow-2xs overflow-hidden">
-        {/* Toolbar: search + exports */}
+        {/* Toolbar: search (downloads are in the right-hand panel) */}
         <div className="p-2.5 border-b border-[#E5DFD3] bg-[#F6F2EA] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Search className="w-3.5 h-3.5 text-[#4D4D4F] shrink-0" />
@@ -87,24 +77,6 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                 ? `${filteredRecords.length.toLocaleString()} / ${allRecords.length.toLocaleString()} users`
                 : `${filteredRecords.length.toLocaleString()} / ${allRecords.length.toLocaleString()} rows`}
             </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => exportAs('json')}
-              className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] flex items-center gap-1 font-medium cursor-pointer shadow-2xs"
-            >
-              <Download className="w-3 h-3 text-[#E31837]" />
-              <span>Export JSON</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => exportAs('csv')}
-              className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] flex items-center gap-1 font-medium cursor-pointer shadow-2xs"
-            >
-              <Download className="w-3 h-3 text-[#247153]" />
-              <span>Export CSV</span>
-            </button>
           </div>
         </div>
 
