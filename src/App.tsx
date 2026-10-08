@@ -1,4 +1,4 @@
-import React, { useState, useId, useEffect } from 'react';
+import React, { useState, useId, useEffect, useRef } from 'react';
 import {
   Layers,
   Database,
@@ -62,13 +62,22 @@ import {
 
 import { TechMahindraLogo } from './components/TechMahindraLogo';
 import { FrontPage } from './components/FrontPage';
-import {
-  TelecomDomainLogo,
-  BfsiDomainLogo,
-  HealthcareDomainLogo,
-  ManufacturingDomainLogo,
-  TrustSafetyDomainLogo
-} from './components/DomainLogos';
+import { GeneratedRecords } from './components/GeneratedRecords';
+import type {
+  CatalogCountry,
+  CatalogScenario,
+  CatalogScenarioDetail,
+  ScenarioConfirmResponse,
+  ScenarioDraftResponse,
+  ScenarioGenerateResponse
+} from './api/types';
+import { proposeScenario, confirmScenario, generateScenario } from './api/scenarioApi';
+import { getCountries, getScenarioDetail } from './api/catalogApi';
+import { useCatalog } from './hooks/useCatalog';
+import { notify, notifyApiError, type ToastKind } from './lib/notify';
+import { getDomainVisual } from './lib/domainVisual';
+import { toDataFields, type DataField } from './lib/schema';
+import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from './lib/exportData';
 
 // =========================================================================
 // DATASETS & CATALOGS FOR DEDICATED SIDEBAR VIEWS
@@ -1399,759 +1408,34 @@ function SettingsView({
 }
 type DomainType = 'telecom' | 'bfsi' | 'healthcare' | 'manufacturing' | 'trust_safety';
 type PipelineStageId = 1 | 2 | 3 | 4 | 5;
-type WorkbenchTab = 'table' | 'graph' | 'ast' | 'stageDetails';
+type WorkbenchTab = 'table' | 'records' | 'graph' | 'ast' | 'stageDetails';
 
-interface DataField {
-  id: string;
-  name: string;
-  standardRef: string;
-  physicalType: string;
-  constraints: string;
-  sensitivity: 'PII / Masked' | 'Financial' | 'Operational' | 'Synthetic Target';
-  qaStatus: 'PASS' | 'FLAGGED' | 'RESOLVED';
-  qaMessage?: string;
-  distribution?: string;
+// =========================================================================
+// GENERATION LIMITS OF THE BACKEND (POST /scenario/generate)
+// A transactional run returns `count` users x `recordsPerUser` (max 10) records; an aggregational run returns `count` rows.
+// =========================================================================
+const MAX_USERS = 5000;
+const MAX_RECORDS_PER_USER = 10;
+const DEFAULT_RECORD_COUNT = 1000;
+const RECORD_PRESETS = [500, 1000, 10000, 50000];
+const MAX_SEED = 2_147_483_647;
+
+/** Country preselected in the Country dropdown (and used if /catalog/countries cannot be loaded). Set VITE_DEFAULT_COUNTRY to change it. */
+const DEFAULT_COUNTRY: string = (import.meta.env.VITE_DEFAULT_COUNTRY as string | undefined) || 'IN';
+
+type DownloadFormat = ExportFormat;
+
+const maxRecordsFor = (typeOfData: string | undefined): number =>
+  typeOfData === 'aggregational' ? MAX_USERS : MAX_USERS * MAX_RECORDS_PER_USER;
+
+/** How many users and records per user produce about `total` records. */
+function planGeneration(total: number, typeOfData: string | undefined): { count: number; recordsPerUser: number } {
+  if (typeOfData === 'aggregational') return { count: total, recordsPerUser: 1 };
+  const recordsPerUser = Math.min(MAX_RECORDS_PER_USER, total);
+  return { count: Math.ceil(total / recordsPerUser), recordsPerUser };
 }
 
-export interface ScenarioVariableOption {
-  id: string;
-  name: string;
-  type: string;
-  description: string;
-  standardRef?: string;
-  constraints?: string;
-  sensitivity?: 'PII / Masked' | 'Financial' | 'Operational' | 'Synthetic Target';
-}
-
-export const AVAILABLE_SCENARIO_VARIABLES: ScenarioVariableOption[] = [
-  {
-    id: 'rec-1',
-    name: 'topup_balance_number_of_periods',
-    type: 'INTEGER',
-    description: 'For autotopup indicates the number of occurrences of the period the recharge operation must be executed. If not included then no limit is set to stop the executionof the topup every period',
-    standardRef: 'TM Forum SID GB922',
-    constraints: 'Range: 1 .. 360',
-    sensitivity: 'Operational'
-  },
-  {
-    id: 'rec-2',
-    name: 'topup_balance_party_account_status',
-    type: 'STRING',
-    description: 'The condition of the account, such as due, paid, in arrears.',
-    standardRef: 'TM Forum SID GB922',
-    constraints: 'Enum: due | paid | in_arrears',
-    sensitivity: 'Financial'
-  },
-  {
-    id: 'rec-3',
-    name: 'customer_contact_medium_characteristic_state_or_province',
-    type: 'STRING',
-    description: 'State or province',
-    standardRef: 'TM Forum SID GB922',
-    constraints: 'ISO-3166-2 Subdivision code',
-    sensitivity: 'PII / Masked'
-  },
-  {
-    id: 'rec-4',
-    name: 'customer_credit_profile_credit_profile_date',
-    type: 'DATETIME',
-    description: 'The date the profile was established',
-    standardRef: 'TM Forum SID GB922',
-    constraints: 'ISO 8601 UTC Timestamp',
-    sensitivity: 'Financial'
-  },
-  {
-    id: 'rec-5',
-    name: 'customer_balance_depletion_rate',
-    type: 'FLOAT',
-    description: 'Empirical rate of balance consumption per active session hour',
-    standardRef: '3GPP TS 32.298',
-    constraints: 'Range: 0.00 .. 250.00',
-    sensitivity: 'Operational'
-  },
-  {
-    id: 'rec-6',
-    name: 'network_slice_service_type_sst',
-    type: 'INTEGER',
-    description: '3GPP 5G slice service type identifier (eMBB, URLLC, mMTC)',
-    standardRef: '3GPP TS 23.501',
-    constraints: 'Enum: 1 (eMBB) | 2 (URLLC) | 3 (mMTC)',
-    sensitivity: 'Operational'
-  },
-  {
-    id: 'rec-7',
-    name: 'ussd_gateway_session_duration_sec',
-    type: 'INTEGER',
-    description: 'Total roundtrip duration of USSD automated topup dialogue',
-    standardRef: 'CAMEL / GSM 03.90',
-    constraints: 'Range: 1 .. 120 sec',
-    sensitivity: 'Operational'
-  },
-  {
-    id: 'rec-8',
-    name: 'sim_subscriber_tenure_months',
-    type: 'INTEGER',
-    description: 'Cumulative active account tenure in calendar months',
-    standardRef: 'TM Forum SID Customer ABE',
-    constraints: 'Range: 1 .. 240',
-    sensitivity: 'Operational'
-  }
-];
-
-interface DomainConfig {
-  id: DomainType;
-  name: string;
-  icon: React.ReactNode;
-  standards: string[];
-  journeys: {
-    title: string;
-    subScenarios: string[];
-    activeScenario: string;
-  }[];
-  defaultPrompt: string;
-}
-
-const DOMAINS: Record<DomainType, DomainConfig> = {
-  telecom: {
-    id: 'telecom',
-    name: 'Telecommunication',
-    icon: <TelecomDomainLogo className="w-6 h-6 text-[#E31837]" />,
-    standards: ['TMF 622', 'TMF 638', '3GPP TS 32.298 (5G CDR)', 'MEF LSO', 'TMF 654', 'GSMA RCC.07'],
-    journeys: [],
-    defaultPrompt: 'Model periodic prepaid top-up lifecycles with TMF 654 bucket reloads, low balance notification thresholds, nominal payment gateway settlement latency, and E.164 MSISDN validation.'
-  },
-  bfsi: {
-    id: 'bfsi',
-    name: 'BFSI',
-    icon: <BfsiDomainLogo className="w-6 h-6 text-[#185F8D]" />,
-    standards: ['BIAN v10.0', 'ISO 20022 (pacs.008)', 'Open Banking v3.1', 'PCI-DSS v4.0', 'FATF Travel Rule'],
-    journeys: [
-      {
-        title: 'Instant Wire & Sanctions Screening',
-        subScenarios: ['Clean pacs.008 Settlement', 'PEP Name Fuzzy Match', 'Structurally Layered Smurfing'],
-        activeScenario: 'Structurally Layered Smurfing'
-      },
-      {
-        title: 'Credit Decisioning & KYC',
-        subScenarios: ['Thin-File Underwriting', 'Adverse Action Threshold', 'Synthetic Identity Burst'],
-        activeScenario: 'Synthetic Identity Burst'
-      }
-    ],
-    defaultPrompt: 'Generate high-velocity cross-border settlement records under ISO 20022 pacs.008 schema with 8% smurfing structural anomalies and BIAN payment execution invariants.'
-  },
-  healthcare: {
-    id: 'healthcare',
-    name: 'Healthcare',
-    icon: <HealthcareDomainLogo className="w-6 h-6 text-[#247153]" />,
-    standards: ['HL7 FHIR v4.3', 'DICOM PS3.x', 'CDISC ODM v1.3', 'HIPAA Safe Harbor', 'SNOMED CT'],
-    journeys: [
-      {
-        title: 'Clinical Encounter & EHR Triage',
-        subScenarios: ['Normal Ambulatory Visit', 'ICU Septic Shock Escalation', 'Prior Auth Insurance Denial'],
-        activeScenario: 'ICU Septic Shock Escalation'
-      },
-      {
-        title: 'Clinical Trial Cohort Matching',
-        subScenarios: ['Oncology Protocol Arm A', 'Biomarker Inclusion Filter', 'Adverse Event MedDRA Drift'],
-        activeScenario: 'Biomarker Inclusion Filter'
-      }
-    ],
-    defaultPrompt: 'Synthesize longitudinal FHIR Patient and Observation resource bundles with synthetic vital telemetry, maintaining strict differential privacy ε=0.5.'
-  },
-  manufacturing: {
-    id: 'manufacturing',
-    name: 'Manufacturing',
-    icon: <ManufacturingDomainLogo className="w-6 h-6 text-[#8A5200]" />,
-    standards: ['OPC UA Part 4', 'ISA-95 Enterprise', 'MTConnect v2.0', 'MQTT-Sparkplug B', 'ISO 13374'],
-    journeys: [
-      {
-        title: 'CNC Spindle Predictive Maintenance',
-        subScenarios: ['Steady State High RPM', 'Bearing Fluting Resonance', 'Thermal Runaway & Jam'],
-        activeScenario: 'Bearing Fluting Resonance'
-      },
-      {
-        title: 'Autonomous AGV Fleet Telemetry',
-        subScenarios: ['Warehouse Path Routing', 'LiDAR Occlusion Deadlock', 'Battery Degradation Curve'],
-        activeScenario: 'Warehouse Path Routing'
-      }
-    ],
-    defaultPrompt: 'Produce high-frequency OPC UA vibration & thermal telemetry with calibrated bearing fatigue harmonics and ISA-95 equipment hierarchy metadata.'
-  },
-  trust_safety: {
-    id: 'trust_safety',
-    name: 'T&S',
-    icon: <TrustSafetyDomainLogo className="w-6 h-6 text-[#7C3AED]" />,
-    standards: ['NIST AI RMF', 'EU AI Act Tier-2', 'IEEE 7000 Ethics', 'ISO/IEC 42001', 'CIPA Privacy'],
-    journeys: [
-      {
-        title: 'Harmful Content & Abuse Moderation',
-        subScenarios: ['Toxicity & Hate Speech Drift', 'Multi-modal Prompt Injection', 'Coordinated Inauthentic Behavior'],
-        activeScenario: 'Multi-modal Prompt Injection'
-      },
-      {
-        title: 'Account Takeover & Fraud Ring',
-        subScenarios: ['Device Fingerprint Mismatch', 'Credential Stuffing Cascade', 'Synthetic Bot Interaction'],
-        activeScenario: 'Credential Stuffing Cascade'
-      }
-    ],
-    defaultPrompt: 'Generate multimodal Trust & Safety abuse audit traces with adversarial red-teaming vectors, NIST AI RMF safety boundaries, and synthetic account takeover telemetry.'
-  }
-};
-
-const TELECOM_SUBDOMAINS = [
-  { id: 'prepaid_customer', label: 'Prepaid Customer' }
-];
-
-const TELECOM_SUBDOMAIN_DATA: Record<string, {
-  name: string;
-  standards: string[];
-  description: string;
-  journeys: {
-    title: string;
-    subScenarios: string[];
-    activeScenario: string;
-  }[];
-}> = {
-  prepaid_customer: {
-    name: 'Prepaid Customer',
-    standards: ['TMF 654', '3GPP TS 32.298 (5G CDR)', 'TMF 622', 'TMF 638', 'GSMA RCC.07'],
-    description: 'Prepaid account lifecycles, real-time top-ups, data quota exhaustion, and cross-journey coordination.',
-    journeys: [
-      {
-        title: '1. Low Balance & Top-up',
-        subScenarios: [
-          'LB-01 Normal',
-          'LB-02 Suppression',
-          'LB-03 Customer Declines',
-          'LB-04 No Response',
-          'LB-05 Assisted',
-          'LB-06 Failure',
-          'LB-07 Exceptional',
-          'LB-08 Duplicate Trigger',
-          'LB-09 Concurrent Journey'
-        ],
-        activeScenario: 'LB-01 Normal'
-      },
-      {
-        title: '2. Data Depletion & Upsell',
-        subScenarios: [
-          'DU-01 Normal',
-          'DU-02 Booster / Add-on',
-          'DU-03 Better-Fit Plan',
-          'DU-04 Suppression',
-          'DU-05 Customer Declines / No Response',
-          'DU-06 Assisted',
-          'DU-07 Failure',
-          'DU-08 Exceptional',
-          'DU-09 Repeated Depletion',
-          'DU-10 Concurrent Journey'
-        ],
-        activeScenario: 'DU-01 Normal'
-      },
-      {
-        title: '3. Cross-Journey',
-        subScenarios: [
-          'CJ-01 Single Journey',
-          'CJ-02 Concurrent',
-          'CJ-03 Active Journey',
-          'CJ-04 Duplicate',
-          'CJ-05 Situation Change',
-          'CJ-06 No Clear Priority'
-        ],
-        activeScenario: 'CJ-01 Single Journey'
-      }
-    ]
-  },
-  '5g_nr': {
-    name: '5G Core & NR RAN Slicing',
-    standards: ['3GPP TS 23.501 (5G System)', '3GPP TS 38.300 (NR RAN)', 'ITU-T Y.3172', 'O-RAN.WG1'],
-    description: 'End-to-end 5G network slicing, radio admission control, SLA quality-of-service, and slice handovers.',
-    journeys: [
-      {
-        title: '1. eMBB High-Throughput Slice Lifecycle',
-        subScenarios: [
-          'NR-01 Dynamic Slice Admission',
-          'NR-02 SLA Latency Violation',
-          'NR-03 Congestion Backoff & Throttling',
-          'NR-04 Inter-gNodeB Slice Handover'
-        ],
-        activeScenario: 'NR-01 Dynamic Slice Admission'
-      },
-      {
-        title: '2. URLLC Ultra-Reliable Factory Telemetry',
-        subScenarios: [
-          'UR-01 Sub-Millisecond Jitter Ingestion',
-          'UR-02 Redundant Packet Duplication',
-          'UR-03 Edge UPF Failover Recovery'
-        ],
-        activeScenario: 'UR-01 Sub-Millisecond Jitter Ingestion'
-      },
-      {
-        title: '3. mMTC Massive Sensor Fleet Ingestion',
-        subScenarios: [
-          'MM-01 Paging Storm Mitigation',
-          'MM-02 Power Saving Mode (PSM) Wakeup',
-          'MM-03 Bulk Telemetry Ingestion'
-        ],
-        activeScenario: 'MM-01 Paging Storm Mitigation'
-      }
-    ]
-  },
-  bss_billing: {
-    name: 'BSS / Billing & Revenue Management',
-    standards: ['TMF 678 Customer Bill', 'TMF 666 Account Mgmt', 'TMF 677 Usage Consumption', '3GPP TS 32.240'],
-    description: 'Billing cycle cutoffs, convergent rating, dispute adjustments, and multi-currency subscriber settlements.',
-    journeys: [
-      {
-        title: '1. Billing Cycle Cutoff & Invoicing',
-        subScenarios: [
-          'BS-01 Consolidated Bill Run Execution',
-          'BS-02 Disputed Charge Deduction',
-          'BS-03 Late Fee & Grace Window Accrual'
-        ],
-        activeScenario: 'BS-01 Consolidated Bill Run Execution'
-      },
-      {
-        title: '2. Real-Time Balance Rating & Settlement',
-        subScenarios: [
-          'RT-01 Convergent Rating Engine Calculation',
-          'RT-02 Multi-Currency Exchange Spread',
-          'RT-03 MVNO Partner Wholesale Settlement'
-        ],
-        activeScenario: 'RT-01 Convergent Rating Engine Calculation'
-      },
-      {
-        title: '3. Plan Migration & Tier Upgrade',
-        subScenarios: [
-          'PM-01 Prorated Monthly Fee Adjustment',
-          'PM-02 Dunning & Collections Suspension',
-          'PM-03 Family Pool Data Redistribution'
-        ],
-        activeScenario: 'PM-01 Prorated Monthly Fee Adjustment'
-      }
-    ]
-  },
-  oss_orchestration: {
-    name: 'OSS Service Fulfillment & Inventory',
-    standards: ['ETSI NFV SOL005', 'TMF 641 Service Ordering', 'TMF 639 Resource Inventory', 'MEF 55 LSO Legato'],
-    description: 'Zero-touch service fulfillment, NFV virtual function auto-scaling, and topology inventory synchronization.',
-    journeys: [
-      {
-        title: '1. Zero-Touch Slice Orchestration',
-        subScenarios: [
-          'OS-01 Network Service (NS) Instantiation',
-          'OS-02 Dynamic VNF Auto-Scale Out',
-          'OS-03 Infrastructure Exhaustion Rollback'
-        ],
-        activeScenario: 'OS-01 Network Service (NS) Instantiation'
-      },
-      {
-        title: '2. Service Order Fallout & Diagnostics',
-        subScenarios: [
-          'FO-01 Resource Inventory Lock Conflict',
-          'FO-02 Southbound Domain Controller Timeout',
-          'FO-03 Manual Fallback Engineer Intervention'
-        ],
-        activeScenario: 'FO-01 Resource Inventory Lock Conflict'
-      },
-      {
-        title: '3. Inventory Reconciliation & Topology Drift',
-        subScenarios: [
-          'IR-01 Logical Port Allocation Drift',
-          'IR-02 Fiber Cut Automated Protection Switch',
-          'IR-03 SLA Assurance Telemetry Audit'
-        ],
-        activeScenario: 'IR-01 Logical Port Allocation Drift'
-      }
-    ]
-  },
-  cdr_charging: {
-    name: '3GPP CDR & Online Charging System (OCS)',
-    standards: ['3GPP TS 32.298 (5G CDR)', '3GPP TS 32.299 (Diameter Ro)', '3GPP TS 32.291 (5G Nchf)', 'GSMA BA.27'],
-    description: 'Online Charging System credit authorization, Diameter Ro/Gy quotas, and 5G CHF microservices.',
-    journeys: [
-      {
-        title: '1. Diameter Credit Control Authorization',
-        subScenarios: [
-          'CD-01 Initial Unit Request (CCR-I)',
-          'CD-02 Interim Quota Reservation (CCR-U)',
-          'CD-03 Final Session Termination (CCR-T)'
-        ],
-        activeScenario: 'CD-01 Initial Unit Request (CCR-I)'
-      },
-      {
-        title: '2. 5G CHF/Nchf Service-Based Charging',
-        subScenarios: [
-          'CF-01 HTTP/2 Convergent Charging Notify',
-          'CF-02 International Roaming CDR Settlement',
-          'CF-03 Late-Arriving CDR Batch Reconciliation'
-        ],
-        activeScenario: 'CF-01 HTTP/2 Convergent Charging Notify'
-      },
-      {
-        title: '3. CDR Mediation & Rating Pipeline',
-        subScenarios: [
-          'MP-01 Malformed ASN.1 Record Quarantine',
-          'MP-02 Duplicate CDR Suppression Filter',
-          'MP-03 Peak / Off-Peak Tariff Transition'
-        ],
-        activeScenario: 'MP-01 Malformed ASN.1 Record Quarantine'
-      }
-    ]
-  },
-  crm_customer: {
-    name: 'Customer Care & Self-Service Experience',
-    standards: ['TMF 632 Party Mgmt', 'TMF 621 Trouble Ticket', 'TMF 681 Recommendation API', 'GSMA TS.43'],
-    description: 'Digital subscriber onboarding, KYC eSIM profile activation, agent escalations, and retention offers.',
-    journeys: [
-      {
-        title: '1. Digital Onboarding & KYC Activation',
-        subScenarios: [
-          'CR-01 Instant eSIM QR Code Profile Download',
-          'CR-02 Biometric eKYC Verification Pass',
-          'CR-03 Mobile Number Portability (MNP) Switch'
-        ],
-        activeScenario: 'CR-01 Instant eSIM QR Code Profile Download'
-      },
-      {
-        title: '2. Churn Retention & Care Escalation',
-        subScenarios: [
-          'RE-01 Proactive Retention Bundle Offer',
-          'RE-02 Critical Outage SLA Credit Compensation',
-          'RE-03 AI Chatbot to Senior Agent Handoff'
-        ],
-        activeScenario: 'RE-01 Proactive Retention Bundle Offer'
-      },
-      {
-        title: '3. Self-Service Portal & Plan Customization',
-        subScenarios: [
-          'SS-01 One-Click Roaming Data Pass Purchase',
-          'SS-02 Visual Invoice Breakdown Analysis',
-          'SS-03 Device Trade-In Valuation Flow'
-        ],
-        activeScenario: 'SS-01 One-Click Roaming Data Pass Purchase'
-      }
-    ]
-  },
-  iot_private5g: {
-    name: 'Private 5G & IoT Fleet Telemetry',
-    standards: ['3GPP TS 22.104 (Cyber-Physical)', 'oneM2M TS-0001', 'MQTT-SN v1.2', 'NIST SP 800-82'],
-    description: 'Campus private 5G slice telemetry, AGV factory floor logistics, smart utility meters, and geofence alerts.',
-    journeys: [
-      {
-        title: '1. Industrial AGV Low-Latency Tracking',
-        subScenarios: [
-          'IO-01 Factory Floor Sub-5ms Roaming Handoff',
-          'IO-02 Transient Packet Loss Compensation',
-          'IO-03 Emergency Stop Signal Broadcast'
-        ],
-        activeScenario: 'IO-01 Factory Floor Sub-5ms Roaming Handoff'
-      },
-      {
-        title: '2. Smart Utility Grid Telemetry Ingestion',
-        subScenarios: [
-          'SG-01 Synchronous Smart Meter Heartbeat',
-          'SG-02 Substation Outage Alarm Storm',
-          'SG-03 Firmware Over-the-Air (FOTA) Distribution'
-        ],
-        activeScenario: 'SG-01 Synchronous Smart Meter Heartbeat'
-      },
-      {
-        title: '3. Asset Geofence & Tamper Monitoring',
-        subScenarios: [
-          'GF-01 High-Security Geofence Perimeter Breach',
-          'GF-02 Cold Chain Temperature Spike Anomaly',
-          'GF-03 Fallback Cellular Protocol Handshake'
-        ],
-        activeScenario: 'GF-01 High-Security Geofence Perimeter Breach'
-      }
-    ]
-  }
-};
-
-const SCENARIO_SPECIFICATIONS: Record<string, string> = {
-  // 1. Low Balance & Top-up Scenarios (LB-01 to LB-09) - Specific to Prepaid Customer
-  'LB-01 Normal':
-    'Model periodic prepaid top-up lifecycles with TMF 654 bucket reloads, nominal payment gateway settlement latency, and E.164 MSISDN validation.',
-  'LB-02 Suppression':
-    'Enforce suppression rules for accounts with active contact fatigue flags, opt-out preferences, or pending auto-recharge schedules to prevent unwanted notifications.',
-  'LB-03 Customer Declines':
-    'Simulate explicit top-up offer rejection via USSD/SMS with recorded decline telemetry and downstream churn hazard weighting.',
-  'LB-04 No Response':
-    'Capture unacknowledged notification timeout events after low-balance warning pushes, scheduling grace-period reminder retries.',
-  'LB-05 Assisted':
-    'Orchestrate customer-care agent assisted reload flows with IVR verification, CSR ticket generation, and voucher token redemption.',
-  'LB-06 Failure':
-    'Simulate payment gateway timeout and card decline exceptions during reload triggers, creating TMF 632 billing alarm notifications.',
-  'LB-07 Exceptional':
-    'Synthesize edge-case ledger balance anomalies, sudden zero-credit drops during active voice calls, and overdraft protection triggers.',
-  'LB-08 Duplicate Trigger':
-    'Detect and debounce concurrent automated top-up requests initiated within 30 seconds to prevent double bucket credits.',
-  'LB-09 Concurrent Journey':
-    'Handle overlapping Low Balance warning during an in-flight Data Depletion or eSIM activation flow with priority resolution.',
-
-  // 2. Data Depletion & Upsell Scenarios (DU-01 to DU-10) - Specific to Prepaid Customer
-  'DU-01 Normal':
-    'Incorporate 3GPP 5G slice handoff logs into low-balance customer journey. Enforce TMF 654 quantity bucket depletion constraints with high churn hazard correlation.',
-  'DU-02 Booster / Add-on':
-    'Synthesize on-demand 5G high-speed data booster purchase events triggered when cellular usage velocity breaches 80% quota threshold.',
-  'DU-03 Better-Fit Plan':
-    'Analyze longitudinal monthly usage patterns to recommend higher-tier postpaid/unlimited tier plans based on predictive consumption modeling.',
-  'DU-04 Suppression':
-    'Enforce marketing suppression rules for high-depletion subscribers on enterprise corporate APNs or active complaint holds.',
-  'DU-05 Customer Declines / No Response':
-    'Record upsell prompt ignore and dismiss telemetry, evaluating subsequent throttle degradation and retention churn coefficients.',
-  'DU-06 Assisted':
-    'Model retail store or hotline assisted upsell conversion with plan migration contracts and SIM profile updates.',
-  'DU-07 Failure':
-    'Simulate billing rating engine transaction aborts during quota top-up purchases with compensatory quota rollback events.',
-  'DU-08 Exceptional':
-    'Model extreme data depletion spikes from runaway tethering or background app anomalies breaching 100% quota in under 15 minutes.',
-  'DU-09 Repeated Depletion':
-    'Track recurring multi-cycle quota exhaustion within the same billing period, escalating subscriber to preferential VIP upsell tiers.',
-  'DU-10 Concurrent Journey':
-    'Reconcile simultaneous Data Depletion alert while subscriber is already in an unresolved Low Balance top-up state.',
-
-  // 3. Cross-Journey Scenarios (CJ-01 to CJ-06) - Specific to Prepaid Customer
-  'CJ-01 Single Journey':
-    'Isolate baseline single-trajectory execution guaranteeing zero side-effects on secondary BSS billing or provisioning queues.',
-  'CJ-02 Concurrent':
-    'Simulate concurrent lifecycle trajectories executing simultaneously across Low Balance top-up and Data Depletion upsell pipelines.',
-  'CJ-03 Active Journey':
-    'Enforce state locks and mutex validation when a subscriber already possesses an in-flight uncommitted transaction.',
-  'CJ-04 Duplicate':
-    'Generate deduplicated event streams resolving identical webhook triggers across OSS slice management and BSS ordering engines.',
-  'CJ-05 Situation Change':
-    'Model mid-journey tariff plan changes, line disconnection, or roaming handover altering ongoing fulfillment rules in real time.',
-  'CJ-06 No Clear Priority':
-    'Synthesize arbitration matrix resolving conflicting simultaneous journey triggers under TM Forum Open Digital Architecture priority rules.',
-
-  // 5G Core & NR RAN Slicing Scenarios
-  'NR-01 Dynamic Slice Admission':
-    'Simulate 5G Standalone (SA) dynamic Network Slice Subnet Management Function (NSSMF) instantiation with strict SLA latency guarantees (<10ms).',
-  'NR-02 SLA Latency Violation':
-    'Synthesize 5G RAN edge congestion leading to jitter violation on dedicated eMBB video streaming slice, triggering dynamic PRB reallocation.',
-  'NR-03 Congestion Backoff & Throttling':
-    'Model gNodeB radio scheduler overload mitigation with AMBR bandwidth throttling and 3GPP TS 23.501 priority queuing.',
-  'NR-04 Inter-gNodeB Slice Handover':
-    'Capture Xn interface handover telemetry preserving 5G Network Slice Selection Assistance Information (NSSAI) across cells.',
-  'UR-01 Sub-Millisecond Jitter Ingestion':
-    'Model URLLC deterministic packet distribution with 99.999% reliability and sub-millisecond cyclical jitter for industrial robotic actuators.',
-  'UR-02 Redundant Packet Duplication':
-    'Simulate dual-connectivity packet duplication across disparate 5G radio links to prevent single-link dropouts.',
-  'UR-03 Edge UPF Failover Recovery':
-    'Orchestrate seamless User Plane Function (UPF) local breakout switch during primary edge compute node maintenance.',
-  'MM-01 Paging Storm Mitigation':
-    'Simulate millions of smart sensor nodes waking concurrently after regional grid restoration with exponential backoff paging.',
-  'MM-02 Power Saving Mode (PSM) Wakeup':
-    'Model periodic 3GPP eDRX and PSM timers with short burst uplink transmissions and rapid sleep cycle transitions.',
-  'MM-03 Bulk Telemetry Ingestion':
-    'Synthesize massive IoT sensor payload ingestion under oneM2M and MQTT-SN protocols with schema validation.',
-
-  // BSS Billing Scenarios
-  'BS-01 Consolidated Bill Run Execution':
-    'Generate multi-service convergent billing ledger events aggregating post-rated voice, data bucket overages, and recurring subscription fees.',
-  'BS-02 Disputed Charge Deduction':
-    'Simulate customer bill inquiry resulting in immediate one-time credit ledger adjustment under TMF 678 guidelines.',
-  'BS-03 Late Fee & Grace Window Accrual':
-    'Model automated dunning timeline adding penalty surcharge upon breach of 15-day payment grace window.',
-  'RT-01 Convergent Rating Engine Calculation':
-    'Evaluate millisecond rating matrix calculating tiered volume discounts and dynamic peak/off-peak price multipliers.',
-  'RT-02 Multi-Currency Exchange Spread':
-    'Synthesize cross-border international roaming fee settlement with daily foreign exchange spot rate conversion.',
-  'RT-03 MVNO Partner Wholesale Settlement':
-    'Generate inter-carrier CDR wholesale rating logs with revenue-share percentage split and SLA penalty deductions.',
-  'PM-01 Prorated Monthly Fee Adjustment':
-    'Calculate exact day-fraction recurring charge adjustments following mid-cycle customer upgrade from 50GB to Unlimited tier.',
-  'PM-02 Dunning & Collections Suspension':
-    'Simulate 30-day delinquent subscriber account suspension with restricted outgoing call state and SMS payment warning.',
-  'PM-03 Family Pool Data Redistribution':
-    'Reallocate dynamically shared family pool gigabyte quotas upon member threshold consumption alerts.',
-
-  // OSS Orchestration Scenarios
-  'OS-01 Network Service (NS) Instantiation':
-    'Model zero-touch NFV MANO orchestration initiating virtual firewall and 5G core network function chaining.',
-  'OS-02 Dynamic VNF Auto-Scale Out':
-    'Trigger automated horizontal scaling of virtual User Plane Function instances when ingress bandwidth exceeds 85%.',
-  'OS-03 Infrastructure Exhaustion Rollback':
-    'Synthesize graceful deployment abort and rollback sequence when underlying hypervisor compute cores are fully exhausted.',
-  'FO-01 Resource Inventory Lock Conflict':
-    'Simulate order fallout when concurrent provisioning tasks attempt to lock identical optical switch port interfaces.',
-  'FO-02 Southbound Domain Controller Timeout':
-    'Model northbound orchestrator retry and timeout escalation when southbound SDN controller fails to respond.',
-  'FO-03 Manual Fallback Engineer Intervention':
-    'Route fallen service order to human-in-the-loop remediation queue with automated diagnostic logs.',
-  'IR-01 Logical Port Allocation Drift':
-    'Detect discrepancies between physical network reality and TMF 639 inventory records using periodic telemetry discovery.',
-  'IR-02 Fiber Cut Automated Protection Switch':
-    'Trigger sub-50ms optical protection switching redirecting traffic along secondary physical route.',
-  'IR-03 SLA Assurance Telemetry Audit':
-    'Validate synthetic transport telemetry against committed service level agreements and customer contracts.',
-
-  // CDR & Charging Scenarios
-  'CD-01 Initial Unit Request (CCR-I)':
-    'Model 3GPP Diameter Ro CCR-Initial message negotiating initial granted service units for mobile data session start.',
-  'CD-02 Interim Quota Reservation (CCR-U)':
-    'Simulate periodic CCR-Update requests re-authorizing data quotas based on subscriber real-time consumption.',
-  'CD-03 Final Session Termination (CCR-T)':
-    'Generate CCR-Termination closing data session, recording total consumed volume and releasing reserved ledger balance.',
-  'CF-01 HTTP/2 Convergent Charging Notify':
-    'Synthesize 5G Service-Based Architecture Nchf charging notify POST requests between SMF and CHF microservices.',
-  'CF-02 International Roaming CDR Settlement':
-    'Model GSMA TAP3/BDS batch generation for outbound roaming data sessions with currency conversion.',
-  'CF-03 Late-Arriving CDR Batch Reconciliation':
-    'Process out-of-sequence CDR files arriving up to 72 hours late, adjusting historic customer buckets without re-billing.',
-  'MP-01 Malformed ASN.1 Record Quarantine':
-    'Simulate mediation engine detecting unparseable ASN.1 BER encoding, isolating record to dead-letter queue.',
-  'MP-02 Duplicate CDR Suppression Filter':
-    'Enforce cryptographic hash deduplication suppressing identical CDR records within a 48-hour deduplication cache.',
-  'MP-03 Peak / Off-Peak Tariff Transition':
-    'Split single long-duration voice call or data session across midnight peak-to-off-peak tariff boundary.',
-
-  // CRM & Customer Care Scenarios
-  'CR-01 Instant eSIM QR Code Profile Download':
-    'Model GSMA Consumer eSIM RSP SM-DP+ profile reservation, activation code generation, and device profile download.',
-  'CR-02 Biometric eKYC Verification Pass':
-    'Synthesize identity verification pipeline with government registry validation, facial match score, and fraud check.',
-  'CR-03 Mobile Number Portability (MNP) Switch':
-    'Simulate inter-operator donor port-out release and recipient port-in activation within national clearinghouse.',
-  'RE-01 Proactive Retention Bundle Offer':
-    'Detect high churn probability score triggering automated retention package discount before contract expiry.',
-  'RE-02 Critical Outage SLA Credit Compensation':
-    'Automatically calculate and credit bill rebate to subscribers impacted by regional cell tower outage.',
-  'RE-03 AI Chatbot to Senior Agent Handoff':
-    'Transfer customer care interaction context and sentiment analysis score from automated IVR bot to tier-2 human specialist.',
-  'SS-01 One-Click Roaming Data Pass Purchase':
-    'Model subscriber mobile app self-care purchase of 7-day international roaming pass with instant policy enforcement.',
-  'SS-02 Visual Invoice Breakdown Analysis':
-    'Synthesize itemized subscriber charge drilldown data highlighting year-over-year spend trends.',
-  'SS-03 Device Trade-In Valuation Flow':
-    'Process automated device condition diagnostic checklist and quote trade-in credit toward next-generation 5G flagship.',
-
-  // IoT & Private 5G Scenarios
-  'IO-01 Factory Floor Sub-5ms Roaming Handoff':
-    'Generate private 5G URLLC telemetry for autonomous mobile robots traversing dense industrial factory cells.',
-  'IO-02 Transient Packet Loss Compensation':
-    'Simulate packet loss concealment and proactive retransmission across radio interference zones.',
-  'IO-03 Emergency Stop Signal Broadcast':
-    'Broadcast priority mission-critical safety stop signal over dedicated private 5G slice with zero queue delay.',
-  'SG-01 Synchronous Smart Meter Heartbeat':
-    'Ingest hourly kilowatt-hour telemetry from millions of distributed smart electric meters over NB-IoT.',
-  'SG-02 Substation Outage Alarm Storm':
-    'Simulate sudden burst of power-loss "last gasp" notifications following high-voltage transformer trip.',
-  'SG-03 Firmware Over-the-Air (FOTA) Distribution':
-    'Schedule multicast firmware update distribution to edge utility meters during low-traffic overnight window.',
-  'GF-01 High-Security Geofence Perimeter Breach':
-    'Trigger instant security alarm when high-value tracked asset departs authorized campus boundary.',
-  'GF-02 Cold Chain Temperature Spike Anomaly':
-    'Model pharmaceutical cold storage sensor breaching +4°C threshold with continuous GPS coordinate logging.',
-  'GF-03 Fallback Cellular Protocol Handshake':
-    'Simulate asset tracker failing over from private 5G to public LTE-M network when traveling off-premises.',
-
-  // Legacy fallback scenario keys
-  'Normal Recharge (USSD/App)':
-    'Model periodic prepaid top-up lifecycles with TMF 654 bucket reloads, nominal payment gateway settlement latency, and E.164 MSISDN validation.',
-  'Failed Auto-Topup Grace':
-    'Simulate payment gateway timeout during automated top-up trigger, generating grace-period throttle events and TMF 632 billing alarm notifications.',
-  'High Churn Trajectory (Data Depletion)':
-    'Incorporate 3GPP 5G slice handoff logs into low-balance customer journey. Enforce TMF 654 quantity bucket depletion constraints with high churn hazard correlation for prepaid subscribers.',
-  'Low Balance to 5G Upsell Transition':
-    'End-to-end multi-state trajectory tracking a prepaid user through low-balance warning, immediate wallet reload, and subsequent 5G high-speed slice upsell conversion.'
-};
-
-const INITIAL_FIELDS: DataField[] = [
-  {
-    id: 'f1',
-    name: 'msisdn',
-    standardRef: 'TMF 638 Resource Instance ID',
-    physicalType: 'VARCHAR(15)',
-    constraints: 'E.164 (+1[2-9]\\d{9})',
-    sensitivity: 'PII / Masked',
-    qaStatus: 'PASS',
-    distribution: 'Uniform pseudo-random'
-  },
-  {
-    id: 'f2',
-    name: 'account_balance',
-    standardRef: 'TMF 654 Quantity Bucket',
-    physicalType: 'DECIMAL(10,2)',
-    constraints: '0.00 <= val <= 2500.00',
-    sensitivity: 'Financial',
-    qaStatus: 'PASS',
-    distribution: 'LogNormal(μ=2.8, σ=0.6)'
-  },
-  {
-    id: 'f3',
-    name: 'low_balance_threshold',
-    standardRef: 'TMF 654 Bucket Alarm Config',
-    physicalType: 'DECIMAL(8,2)',
-    constraints: '5.00 <= val <= 25.00',
-    sensitivity: 'Financial',
-    qaStatus: 'PASS',
-    distribution: 'Discrete bucket tier [5.00, 10.00, 20.00]'
-  },
-  {
-    id: 'f4',
-    name: 'cdr_event_raw',
-    standardRef: '3GPP TS 32.298 §5.1 (5G CDR)',
-    physicalType: 'JSONB',
-    constraints: 'Valid 3GPP CDR schema payload with OCS bucket debit',
-    sensitivity: 'Operational',
-    qaStatus: 'FLAGGED',
-    qaMessage: 'Foreign key integrity warning: unlinked OCS charging gateway session in low-balance top-up trigger',
-    distribution: 'Hierarchical JSON AST'
-  },
-  {
-    id: 'f5',
-    name: 'topup_amount_last',
-    standardRef: 'TMF 654 Reload Bucket',
-    physicalType: 'DECIMAL(10,2)',
-    constraints: '5.00 <= val <= 150.00',
-    sensitivity: 'Financial',
-    qaStatus: 'PASS',
-    distribution: 'Categorical recharge denominations'
-  },
-  {
-    id: 'f6',
-    name: 'topup_channel',
-    standardRef: 'TMF 622 ProductOrder Interaction',
-    physicalType: 'VARCHAR(24)',
-    constraints: 'in [USSD, MobileApp, AutoDebit, CSR_Assisted]',
-    sensitivity: 'Operational',
-    qaStatus: 'PASS',
-    distribution: 'Categorical [45%, 35%, 15%, 5%]'
-  },
-  {
-    id: 'f7',
-    name: 'auto_topup_enabled',
-    standardRef: 'TMF 622 Policy Parameter',
-    physicalType: 'BOOLEAN',
-    constraints: 'NOT NULL; True | False',
-    sensitivity: 'Operational',
-    qaStatus: 'PASS',
-    distribution: 'Bernoulli(p=0.38)'
-  },
-  {
-    id: 'f8',
-    name: 'grace_period_active',
-    standardRef: 'TMF 632 Customer Account Status',
-    physicalType: 'BOOLEAN',
-    constraints: 'NOT NULL; True | False',
-    sensitivity: 'Operational',
-    qaStatus: 'PASS',
-    distribution: 'Bernoulli(p=0.12)'
-  },
-  {
-    id: 'f9',
-    name: 'churn_risk_score',
-    standardRef: 'Synthetic Target (Hazard Model)',
-    physicalType: 'FLOAT(3)',
-    constraints: '0.000 <= val <= 1.000',
-    sensitivity: 'Synthetic Target',
-    qaStatus: 'PASS',
-    distribution: 'Sigmoid hazard link'
-  }
-];
+const pct = (score: number | undefined): string => (typeof score === 'number' ? `${(score * 100).toFixed(1)}%` : 'n/a');
 
 export default function App() {
   // View mode: 'frontpage' (document front page) vs 'studio' (workbench canvas)
@@ -2159,7 +1443,13 @@ export default function App() {
 
   // Navigation & Domain state
   const [activeNav, setActiveNav] = useState<'workbench' | 'contracts' | 'dkp' | 'quality' | 'audit' | 'settings'>('workbench');
-  const [activeDomain, setActiveDomain] = useState<DomainType | null>(null);
+  // The cascading dropdowns (industry -> sub-domain -> use case -> journeys) come from the catalog API.
+  const catalog = useCatalog();
+  const activeDomain = catalog.industryId;
+  const [countries, setCountries] = useState<CatalogCountry[]>([]);
+  const [countryCode, setCountryCode] = useState<string>(DEFAULT_COUNTRY);
+  const useCaseId = catalog.useCaseId;
+  const customerJourneys = catalog.journeys;
   const [activeStage, setActiveStage] = useState<PipelineStageId>(3);
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('table');
   
@@ -2177,11 +1467,10 @@ export default function App() {
   });
 
   // Business context state
-  const [activeStandards, setActiveStandards] = useState<string[]>([]);
-  const [telecomSubdomain, setTelecomSubdomain] = useState<string>('');
-  const [customerJourneys, setCustomerJourneys] = useState<typeof DOMAINS.telecom.journeys>([]);
   const [openJourneyIndex, setOpenJourneyIndex] = useState<number>(-1);
   const [selectedScenario, setSelectedScenario] = useState<string>('');
+  const [scenarioDetail, setScenarioDetail] = useState<CatalogScenarioDetail | null>(null);
+  const [isScenarioLoading, setIsScenarioLoading] = useState(false);
   const [inputMode, setInputMode] = useState<'prompt' | 'import'>('prompt');
   const [importSubOption, setImportSubOption] = useState<'direct' | 'cloud'>('direct');
   const [cloudUri, setCloudUri] = useState('');
@@ -2197,7 +1486,20 @@ export default function App() {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
 
-  // Editing field modal state
+  // Schema review (POST /scenario/propose -> /scenario/confirm)
+  const [draft, setDraft] = useState<ScenarioDraftResponse | null>(null);
+  const [confirmed, setConfirmed] = useState<ScenarioConfirmResponse | null>(null);
+  const [deletedFieldNames, setDeletedFieldNames] = useState<string[]>([]);
+  const [confirmedDeletions, setConfirmedDeletions] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [generated, setGenerated] = useState<ScenarioGenerateResponse | null>(null);
+  // Lets an answer that arrives after the user changed the selection be dropped.
+  const pipelineTurn = useRef(0);
+  const scenarioTurn = useRef(0);
+
+  /* DISABLED: editing a field's constraints, adding a field by hand and the "Recommended Variables" dialog are not
+     backed by the API yet (a confirmed schema accepts removals and description/nullable/params edits only).
+    // Editing field modal state
   const [editingField, setEditingField] = useState<DataField | null>(null);
   const [isAddingField, setIsAddingField] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
@@ -2284,6 +1586,7 @@ export default function App() {
     }
     setShowRecommendModal(false);
   };
+  */
 
   // Multi-modal parameters state
   const [targetEngine, setTargetEngine] = useState<'duckdb' | 'polars' | 'spark' | null>(null);
@@ -2295,26 +1598,21 @@ export default function App() {
   });
   const [recordCount, setRecordCount] = useState<number | ''>('');
   const [randomSeed, setRandomSeed] = useState<number | ''>('');
-  const [normalAnomalySplit, setNormalAnomalySplit] = useState<number>(70); // 70% normal, 30% anomaly by default
-  const [showSeedSuggestions, setShowSeedSuggestions] = useState(false);
   const [modalitiesDropdownOpen, setModalitiesDropdownOpen] = useState(false);
   const [seedSectionExpanded, setSeedSectionExpanded] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Hidden by default with side arrow option
   const [pane3Collapsed, setPane3Collapsed] = useState(false);
-  const [hoveredQaParam, setHoveredQaParam] = useState<string | null>(null);
 
   // Execution & results state
   const [pipelineRun, setPipelineRun] = useState(false);
   const [isPipelineRunning, setIsRunningPipeline] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [executionProgress, setExecutionProgress] = useState(0);
   const [isExecutionComplete, setIsExecutionComplete] = useState(false);
   const [executionDrawerOpen, setExecutionDrawerOpen] = useState(false);
-  const [showNotificationToast, setShowNotificationToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState<'csv' | 'json' | 'parquet' | 'sql' | 'ndjson'>('csv');
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('csv');
 
+  /* DISABLED: static AST sandbox of the unused AST tab
   // AST Live Sandbox state
   const [sandboxExpr, setSandboxExpr] = useState("pa.Check(lambda s: s['account_balance'] >= 0, name='non_negative_balance')");
   const [sandboxValue, setSandboxValue] = useState('142.50');
@@ -2322,83 +1620,125 @@ export default function App() {
     passed: true,
     message: 'Pandera AST Rule Evaluated: PASS (Value 142.50 satisfies predicate account_balance >= 0)'
   });
+  */
 
   const recordCountInputId = useId();
   const randomSeedInputId = useId();
-  const anomalySplitSliderId = useId();
 
-  // Handle Domain Change
-  const handleDomainChange = (domain: DomainType) => {
+  // Toast feedback helper (react-toastify)
+  const showToast = (msg: string, kind: ToastKind = 'info') => notify(msg, kind);
+
+  const allStagesReady = { 1: 'READY', 2: 'READY', 3: 'READY', 4: 'READY', 5: 'READY' } as const;
+
+  // Forget everything derived from the current selection (schema draft, confirmation, generated data).
+  const resetPipeline = () => {
+    pipelineTurn.current += 1;
+    setActiveTab('table');
     setPipelineRun(false);
     setIsRunningPipeline(false);
-    if (activeDomain === domain) {
-      setActiveDomain(null);
-      setActiveStandards([]);
-      setTelecomSubdomain('');
-      setCustomerJourneys([]);
-      setSelectedScenario('');
-      setPromptText('');
-      setFields([]);
-      setStageStatuses({
-        1: 'READY',
-        2: 'READY',
-        3: 'READY',
-        4: 'READY',
-        5: 'READY'
-      });
-      showToast('Deselected domain context');
-      setMaxUnlockedStep(1);
-      setWorkflowStep(1);
-      return;
-    }
-    setActiveDomain(domain);
+    setIsConfirming(false);
+    setIsExecuting(false);
+    setIsExecutionComplete(false);
+    setDraft(null);
+    setConfirmed(null);
+    setDeletedFieldNames([]);
+    setConfirmedDeletions('');
+    setFields([]);
+    setSelectedFieldId(null);
+    setGenerated(null);
+    setStageStatuses({ ...allStagesReady });
     setMaxUnlockedStep(1);
     setWorkflowStep(1);
-    const domainData = DOMAINS[domain];
-    setActiveStandards(domainData.standards);
-    setTelecomSubdomain('');
-    setCustomerJourneys([]);
-    setOpenJourneyIndex(-1); // Keep collapsed by default until user selects
-    setSelectedScenario(''); // Keep unselected by default until user selects
-    setPromptText(''); // Keep prompt blank/hidden by default until user selects
+  };
+
+  const resetSelection = () => {
+    scenarioTurn.current += 1;
+    setIsScenarioLoading(false);
+    setOpenJourneyIndex(-1);
+    setSelectedScenario('');
+    setScenarioDetail(null);
+    setPromptText('');
     setShowPromptInfo(false);
-    if (domain === 'telecom') {
-      setOpenJourneyIndex(-1); // Keep collapsed by default until user selects
-      setSelectedScenario(''); // Keep unselected by default until user selects
-      setPromptText(''); // Keep prompt blank by default until user selects
-      setFields(INITIAL_FIELDS);
-      setStageStatuses({
-        1: 'READY',
-        2: 'READY',
-        3: 'READY',
-        4: 'READY',
-        5: 'READY'
-      });
-      showToast(`Activated ${domainData.name}`);
-    } else {
-      setCustomerJourneys(domainData.journeys);
-      setFields([]);
-      setStageStatuses({
-        1: 'READY',
-        2: 'READY',
-        3: 'READY',
-        4: 'READY',
-        5: 'READY'
-      });
-      showToast(`Switched context to ${domainData.name}`);
+  };
+
+  // Handle Domain Change (industries come from GET /catalog/industries)
+  const handleDomainChange = (industryId: string) => {
+    resetPipeline();
+    resetSelection();
+    if (activeDomain === industryId) {
+      void catalog.chooseIndustry(null);
+      showToast('Deselected domain context');
+      return;
+    }
+    void catalog.chooseIndustry(industryId);
+    const name = catalog.industries.find(item => item.id === industryId)?.name ?? 'domain';
+    showToast(`Activated ${name}`);
+  };
+
+  const handleSubDomainChange = (subDomainId: string) => {
+    resetPipeline();
+    resetSelection();
+    void catalog.chooseSubDomain(subDomainId);
+  };
+
+  const handleUseCaseChange = (nextUseCaseId: string) => {
+    resetPipeline();
+    resetSelection();
+    void catalog.chooseUseCase(nextUseCaseId);
+    const name = catalog.useCases.find(item => item.id === nextUseCaseId)?.name;
+    if (name) showToast(`Scoped use case: ${name} — customer journeys loaded`);
+  };
+
+  // Select (or deselect) a scenario; its propose defaults and business description come from GET /catalog/scenarios/{id}
+  const handleScenarioSelect = async (scenario: CatalogScenario) => {
+    resetPipeline();
+    if (selectedScenario === scenario.scenarioId) {
+      resetSelection();
+      showToast(`Deselected scenario: ${scenario.label}`);
+      return;
+    }
+    resetSelection();
+    const turn = scenarioTurn.current;
+    setSelectedScenario(scenario.scenarioId);
+    setIsScenarioLoading(true);
+    try {
+      const detail = await getScenarioDetail(scenario.scenarioId);
+      if (turn !== scenarioTurn.current) return;
+      setScenarioDetail(detail);
+      setPromptText(detail.proposeRequest.businessScenario ?? '');
+      showToast(`Selected scenario: ${scenario.label} — specification loaded`, 'success');
+    } catch (error) {
+      if (turn !== scenarioTurn.current) return;
+      setSelectedScenario('');
+      notifyApiError(error, `Could not load scenario ${scenario.scenarioId}.`);
+    } finally {
+      if (turn === scenarioTurn.current) setIsScenarioLoading(false);
     }
   };
 
-  // Toast feedback helper
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setShowNotificationToast(true);
-    setTimeout(() => {
-      setShowNotificationToast(false);
-    }, 3000);
-  };
+  // Load the industries when the studio opens.
+  useEffect(() => {
+    if (currentView === 'studio' && catalog.industriesState === 'idle') void catalog.loadIndustries();
+  }, [currentView]);
 
-  // Keyboard shortcut listener (Cmd+K / Ctrl+K)
+  // Load the country choices once (GET /catalog/countries); keep the default if the call fails.
+  const countriesRequested = useRef(false);
+  useEffect(() => {
+    if (currentView !== 'studio' || countriesRequested.current) return;
+    countriesRequested.current = true;
+    getCountries()
+      .then(list => {
+        setCountries(list);
+        setCountryCode(prev => (list.some(c => c.code === prev) ? prev : list[0]?.code ?? prev));
+      })
+      .catch(error => {
+        countriesRequested.current = false;
+        notifyApiError(error, 'Could not load the country list.');
+      });
+  }, [currentView]);
+
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K, Cmd+Enter / Ctrl+Enter); the ref keeps the handler current.
+  const runPipelineRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -2407,206 +1747,184 @@ export default function App() {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        handleRunPipeline();
+        runPipelineRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [promptText]);
+  }, []);
 
-  // Handle Pipeline Stage 1-2 Execution from prompt
-  const handleRunPipeline = () => {
+  // Step 1 -> 2: POST /scenario/propose proposes the schema for the selected scenario.
+  const handleRunPipeline = async () => {
+    if (isPipelineRunning) return;
     if (!activeDomain) {
-      showToast('Please select an industry domain first');
+      showToast('Please select an industry domain first', 'warning');
       return;
     }
+    if (!scenarioDetail) {
+      showToast(selectedScenario ? 'The scenario is still loading' : 'Please select a customer journey scenario first', 'warning');
+      return;
+    }
+    if (!Object.values(modalities).some(Boolean)) {
+      showToast('Please select at least one modality type', 'warning');
+      return;
+    }
+    const defaults = scenarioDetail.proposeRequest;
+    const businessScenario = (promptText.trim() || defaults.businessScenario || '').trim();
+    if (!businessScenario) {
+      showToast('This scenario has no business description yet; add one to the catalog first', 'error');
+      return;
+    }
+    const turn = ++pipelineTurn.current;
+    setDraft(null);
+    setConfirmed(null);
+    setDeletedFieldNames([]);
+    setConfirmedDeletions('');
+    setFields([]);
+    setGenerated(null);
+    setActiveTab('table');
+    setIsExecutionComplete(false);
     setMaxUnlockedStep(prev => Math.max(prev, 2) as 1 | 2 | 3);
     setWorkflowStep(2);
-    const currentDomain = DOMAINS[activeDomain] || DOMAINS.telecom;
-    const effectivePrompt = promptText.trim() || currentDomain.defaultPrompt;
-    if (!promptText.trim()) {
-      setPromptText(effectivePrompt);
-    }
     setIsRunningPipeline(true);
-    showToast('Executing Dynamic Sub-Schema Extraction & Synthesis...');
-    setStageStatuses({
-      1: 'COMPLETE',
-      2: 'COMPLETE',
-      3: 'WARNING',
-      4: 'PENDING',
-      5: 'READY'
-    });
+    setStageStatuses({ 1: 'COMPLETE', 2: 'PENDING', 3: 'PENDING', 4: 'PENDING', 5: 'READY' });
     setActiveStage(2);
-    setTimeout(() => {
+    showToast('Proposing the schema for this scenario...');
+    try {
+      const result = await proposeScenario({
+        requestedScenarioId: defaults.requestedScenarioId,
+        scenarioType: defaults.scenarioType,
+        industryType: defaults.industryType,
+        domain: defaults.domain,
+        businessScenario,
+        typeOfData: defaults.typeOfData,
+        country: countryCode,
+        useCase: defaults.useCase,
+        ...(defaults.entityKey ? { entityKey: defaults.entityKey } : {})
+      });
+      if (turn !== pipelineTurn.current) return;
+      setDraft(result);
+      setFields(toDataFields(result.variables, result.variableSources, result.entityKey));
+      setStageStatuses({ 1: 'COMPLETE', 2: 'COMPLETE', 3: 'PENDING', 4: 'PENDING', 5: 'READY' });
       setActiveStage(3);
       setPipelineRun(true);
-      setIsRunningPipeline(false);
-      showToast('Deterministic QA Validation Complete: 1 AST warning detected.');
-    }, 600);
+      showToast(`Schema proposed: ${result.variables.length} variables. Review it, then approve.`, 'success');
+    } catch (error) {
+      if (turn !== pipelineTurn.current) return;
+      setMaxUnlockedStep(1);
+      setWorkflowStep(1);
+      setStageStatuses({ ...allStagesReady });
+      notifyApiError(error, 'Could not propose a schema for this scenario.');
+    } finally {
+      if (turn === pipelineTurn.current) setIsRunningPipeline(false);
+    }
+  };
+  runPipelineRef.current = () => void handleRunPipeline();
+
+  // Step 2 -> 3: POST /scenario/confirm approves the draft, with the variables the reviewer removed.
+  const handleApproveSchema = async () => {
+    if (!draft) {
+      showToast('Run the pipeline first to propose a schema', 'warning');
+      return;
+    }
+    if (isConfirming) return;
+    const deletions = [...deletedFieldNames].sort().join('|');
+    if (confirmed && deletions === confirmedDeletions) {
+      setActiveStage(4);
+      setMaxUnlockedStep(3);
+      setWorkflowStep(3);
+      return;
+    }
+    const turn = pipelineTurn.current;
+    setIsConfirming(true);
+    try {
+      const result = await confirmScenario({ draft_id: draft.draft_id, delete: deletedFieldNames });
+      if (turn !== pipelineTurn.current) return;
+      setConfirmed(result);
+      setConfirmedDeletions(deletions);
+      setFields(toDataFields(result.variables, result.variableSources, result.entityKey));
+      setStageStatuses(prev => ({ ...prev, 3: 'COMPLETE', 4: 'COMPLETE' }));
+      setActiveStage(4);
+      setMaxUnlockedStep(3);
+      setWorkflowStep(3);
+      showToast('Schema approved. Core data generation is unlocked.', 'success');
+      if (result.scenario_id_reassigned) showToast(`The scenario id was reassigned to ${result.scenario_id}`, 'warning');
+    } catch (error) {
+      if (turn !== pipelineTurn.current) return;
+      notifyApiError(error, 'Could not approve the schema.');
+    } finally {
+      if (turn === pipelineTurn.current) setIsConfirming(false);
+    }
   };
 
-  // HITL Override Handlers
-  const handleApproveSchema = () => {
-    setFields(prev =>
-      prev.map(f => (f.qaStatus === 'FLAGGED' ? { ...f, qaStatus: 'RESOLVED', qaMessage: 'Approved with verified foreign key mapping' } : f))
-    );
-    setStageStatuses(prev => ({
-      ...prev,
-      3: 'COMPLETE',
-      4: 'COMPLETE',
-      5: 'COMPLETE'
-    }));
-    setActiveStage(4);
-    setMaxUnlockedStep(3);
-    setWorkflowStep(3);
-    showToast('Schema Contract Approved: HITL Gate cleared. Unlocking Step 3: Multi-Modal Generation.');
-  };
-
-  const handleFixConstraint = (fieldId: string) => {
-    setFields(prev =>
-      prev.map(f =>
-        f.id === fieldId
-          ? {
-              ...f,
-              qaStatus: 'RESOLVED',
-              constraints: 'Valid 3GPP CDR + explicit gNodeB session FK',
-              qaMessage: 'AST check passed: foreign key constraint resolved via synthetic session generator'
-            }
-          : f
-      )
-    );
-    setFieldFilter('all');
-    setSelectedFieldId(fieldId);
-    showToast('AST constraint auto-repaired and verified: 100% contracts passing.');
-  };
-
-  // Handle Multi-Modal Engine Execution
-  const handleExecuteEngine = () => {
+  // Step 3: POST /scenario/generate generates the validated dataset from the confirmed schema.
+  const handleExecuteEngine = async () => {
+    if (!confirmed) {
+      showToast('Approve the schema first', 'warning');
+      return;
+    }
+    if (isExecuting) return;
+    const maxRecords = maxRecordsFor(confirmed.typeOfData);
+    const total = typeof recordCount === 'number' && recordCount > 0 ? Math.floor(recordCount) : DEFAULT_RECORD_COUNT;
+    if (total > maxRecords) {
+      showToast(`Record volume can be at most ${maxRecords.toLocaleString()} for this scenario`, 'error');
+      return;
+    }
+    if (randomSeed !== '' && !(Number.isInteger(randomSeed) && randomSeed >= 0 && randomSeed <= MAX_SEED)) {
+      showToast(`The seed must be a whole number from 0 to ${MAX_SEED.toLocaleString()}`, 'error');
+      return;
+    }
+    const plan = planGeneration(total, confirmed.typeOfData);
+    const turn = pipelineTurn.current;
     setIsExecuting(true);
     setIsExecutionComplete(false);
-    setExecutionProgress(10);
-    // No popup screen shown during or after execution
-
-    const interval = setInterval(() => {
-      setExecutionProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsExecuting(false);
-          setIsExecutionComplete(true);
-          setStageStatuses(s => ({ ...s, 5: 'COMPLETE' }));
-          showToast(`Data generation complete: ${(recordCount || 100000).toLocaleString()} synthetic records generated.`);
-          return 100;
-        }
-        return prev + 18;
-      });
-    }, 280);
+    setGenerated(null);
+    setActiveTab('table');
+    try {
+      const result = await generateScenario(
+        { draftId: confirmed.draft_id, ...plan, ...(randomSeed !== '' ? { seed: randomSeed } : {}) },
+        (seconds, attempt) => showToast(`The scenario behaviour is still being designed. Retrying in ${seconds}s (attempt ${attempt})...`)
+      );
+      if (turn !== pipelineTurn.current) return;
+      setGenerated(result);
+      setActiveTab('records');
+      setIsExecutionComplete(true);
+      setStageStatuses(s => ({ ...s, 5: 'COMPLETE' }));
+      showToast(`Data generation complete: ${result.total_records.toLocaleString()} synthetic records generated.`, 'success');
+      if (result.errors.length > 0) showToast(`The run reported ${result.errors.length} issue(s): ${result.errors[0]}`, 'warning');
+    } catch (error) {
+      if (turn !== pipelineTurn.current) return;
+      notifyApiError(error, 'Data generation failed.');
+    } finally {
+      if (turn === pipelineTurn.current) setIsExecuting(false);
+    }
   };
 
-  // Download synthetic data in selected format (JSON, CSV, Parquet, SQL, NDJSON)
-  const handleDownloadSyntheticData = (formatToUse?: 'csv' | 'json' | 'parquet' | 'sql' | 'ndjson') => {
+  // Download the generated records in the selected format (CSV, JSON, SQL, NDJSON)
+  const handleDownloadSyntheticData = (formatToUse?: DownloadFormat) => {
+    if (!generated) {
+      showToast('Generate the data first', 'warning');
+      return;
+    }
     const fmt = formatToUse || downloadFormat;
-    const count = typeof recordCount === 'number' && recordCount > 0 ? recordCount : 100000;
-    const domain = activeDomain || 'telecom';
-
-    // Sample generated records representing calibrated output
-    const sampleRecords = [
-      { msisdn: '+14155550192', account_balance: 14.20, data_depletion_pct: 98.4, churn_risk_score: 0.892, slice_id: 'eMBB-01', sim_status: 'ACTIVE', network_cell_id: 'CELL-94821', timestamp: '2026-10-06T14:20:00Z' },
-      { msisdn: '+14155550244', account_balance: 120.00, data_depletion_pct: 12.1, churn_risk_score: 0.041, slice_id: 'URLLC-02', sim_status: 'ACTIVE', network_cell_id: 'CELL-88102', timestamp: '2026-10-06T14:21:15Z' },
-      { msisdn: '+14155550381', account_balance: 2.50, data_depletion_pct: 99.8, churn_risk_score: 0.942, slice_id: 'eMBB-01', sim_status: 'GRACE_PERIOD', network_cell_id: 'CELL-71049', timestamp: '2026-10-06T14:22:30Z' },
-      { msisdn: '+14155550419', account_balance: 45.75, data_depletion_pct: 45.0, churn_risk_score: 0.215, slice_id: 'MIoT-03', sim_status: 'ACTIVE', network_cell_id: 'CELL-63910', timestamp: '2026-10-06T14:23:45Z' },
-      { msisdn: '+14155550502', account_balance: 0.00, data_depletion_pct: 100.0, churn_risk_score: 0.988, slice_id: 'eMBB-01', sim_status: 'SUSPENDED', network_cell_id: 'CELL-55012', timestamp: '2026-10-06T14:25:00Z' }
-    ];
-
-    let content = '';
-    let mimeType = 'text/plain';
-
-    if (fmt === 'csv') {
-      mimeType = 'text/csv';
-      const headers = Object.keys(sampleRecords[0]).join(',');
-      const rows = sampleRecords.map(r => Object.values(r).join(',')).join('\n');
-      content = `${headers}\n${rows}\n# ... (Total ${count.toLocaleString()} calibrated rows generated under TM Forum SID v22.5)`;
-    } else if (fmt === 'json') {
-      mimeType = 'application/json';
-      content = JSON.stringify({
-        metadata: {
-          domain,
-          total_records: count,
-          generated_at: new Date().toISOString(),
-          format: 'json',
-          seed: randomSeed || 42901,
-          event_split: `${normalAnomalySplit}% Normal / ${100 - normalAnomalySplit}% Anomaly`,
-          target_engine: targetEngine || 'duckdb'
-        },
-        records: sampleRecords
-      }, null, 2);
-    } else if (fmt === 'ndjson') {
-      mimeType = 'application/x-ndjson';
-      content = sampleRecords.map(r => JSON.stringify(r)).join('\n');
-    } else if (fmt === 'sql') {
-      mimeType = 'application/sql';
-      content = `-- ModelOS Synthetic Data Workbench - PostgreSQL / DuckDB Dump
--- Domain: ${domain.toUpperCase()} | Total Rows: ${count.toLocaleString()}
-CREATE TABLE IF NOT EXISTS ${domain}_synthetic_cdr (
-  msisdn VARCHAR(16) PRIMARY KEY,
-  account_balance NUMERIC(10, 2),
-  data_depletion_pct NUMERIC(5, 2),
-  churn_risk_score NUMERIC(5, 4),
-  slice_id VARCHAR(16),
-  sim_status VARCHAR(20),
-  network_cell_id VARCHAR(32),
-  timestamp TIMESTAMP WITH TIME ZONE
-);
-
-INSERT INTO ${domain}_synthetic_cdr VALUES
-${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_depletion_pct}, ${r.churn_risk_score}, '${r.slice_id}', '${r.sim_status}', '${r.network_cell_id}', '${r.timestamp}')`).join(',\n')};
-`;
-    } else if (fmt === 'parquet') {
-      mimeType = 'application/octet-stream';
-      content = `PAR1-ModelOS-Apache-Parquet-V2\nSchema: ${fields.map(f => `${f.name}:${f.physicalType}`).join(';')}\nTotalRecords: ${count}\n` + JSON.stringify(sampleRecords);
+    const text = buildExport(fmt, generated);
+    if (!text) {
+      showToast('There are no records to download.', 'warning');
+      return;
     }
-
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `synthetic_${domain}_${count}records_${Date.now()}.${fmt}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(`Downloaded synthetic data in ${fmt.toUpperCase()} format (${count.toLocaleString()} records).`);
+    downloadText(exportFileName(fmt, generated), text, EXPORT_MIME[fmt]);
+    showToast(`Downloaded synthetic data in ${fmt.toUpperCase()} format (${generated.total_records.toLocaleString()} records).`, 'success');
   };
 
-  // Add field handler
-  const handleAddField = () => {
-    if (!newFieldName.trim()) return;
-    const newField: DataField = {
-      id: `f_${Date.now()}`,
-      name: newFieldName.trim().toLowerCase().replace(/\s+/g, '_'),
-      physicalType: newFieldType,
-      standardRef: newFieldStandard,
-      constraints: newFieldConstraint,
-      sensitivity: 'Operational',
-      qaStatus: 'PASS',
-      distribution: 'Normal distribution'
-    };
-    setFields(prev => [...prev, newField]);
-    setNewFieldName('');
-    setIsAddingField(false);
-    showToast(`Added field "${newField.name}" to contract.`);
-  };
-
-  // Delete field handler
-  const handleDeleteField = (id: string, name: string) => {
-    setFields(prev => prev.filter(f => f.id !== id));
-    showToast(`Deleted field "${name}".`);
-  };
-
-  // Toggle Standard Tag
-  const toggleStandard = (std: string) => {
-    if (activeStandards.includes(std)) {
-      setActiveStandards(prev => prev.filter(s => s !== std));
-    } else {
-      setActiveStandards(prev => [...prev, std]);
+  // Remove a variable from the schema; the removal is sent with the approval (POST /scenario/confirm).
+  const handleDeleteField = (field: DataField) => {
+    if (field.required) {
+      showToast(`"${field.name}" is required and cannot be removed`, 'warning');
+      return;
     }
+    setFields(prev => prev.filter(f => f.id !== field.id));
+    setDeletedFieldNames(prev => (prev.includes(field.name) ? prev : [...prev, field.name]));
+    showToast(`Removed field "${field.name}". Approve the schema to apply it.`);
   };
 
   // Filtered fields
@@ -2620,6 +1938,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
     return true;
   });
 
+  /* DISABLED: recommended-variables dialog filters and the volume-calibrated seed suggestions (static content, not backed by the API)
   // Filtered recommended scenario variables (from modal search)
   const filteredAvailable = availableVars.filter(v =>
     v.name.toLowerCase().includes(searchAvailable.toLowerCase()) ||
@@ -2734,6 +2053,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
       ];
     }
   };
+  */
 
   if (currentView === 'frontpage') {
     return (
@@ -2745,13 +2065,6 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
           }}
           showToast={showToast}
         />
-        {/* Notification Toast */}
-        {showNotificationToast && (
-          <div className="fixed bottom-4 right-4 bg-[#29251D] text-white px-3.5 py-2 rounded-md shadow-lg text-xs flex items-center gap-2 z-50 animate-in slide-in-from-bottom-2 duration-150">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
       </div>
     );
   }
@@ -2995,7 +2308,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
 
             {/* Scrollable Context Body */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
-              {/* Domain Picker Pills */}
+              {/* Domain Picker Pills (industries from GET /catalog/industries) */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
@@ -3012,168 +2325,220 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                     </button>
                   )}
                 </div>
-                <div className={activeDomain ? "flex flex-col gap-2" : "grid grid-cols-2 gap-2"}>
-                  {((Object.keys(DOMAINS) as DomainType[])
-                    .filter(domainKey => !activeDomain || activeDomain === domainKey)
-                  ).map(domainKey => {
-                    const d = DOMAINS[domainKey];
-                    const isSelected = activeDomain === domainKey;
 
-                    const domainSubtitles: Record<DomainType, string> = {
-                      telecom: '5G Core & Slicing',
-                      bfsi: 'ISO 20022 & BIAN',
-                      healthcare: 'HL7 FHIR & EHR',
-                      manufacturing: 'OPC UA & IoT',
-                      trust_safety: 'NIST AI & Safety'
-                    };
+                {catalog.industriesState === 'error' ? (
+                  <div className="p-3 text-center text-xs border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40 space-y-1.5">
+                    <p className="text-[#9C1936] font-medium">Could not load the industry domains.</p>
+                    <button
+                      type="button"
+                      onClick={() => void catalog.loadIndustries()}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-[#E5DFD3] hover:border-[#29251D] rounded font-medium cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : catalog.industriesState !== 'ready' ? (
+                  <div className="p-3 text-center text-xs text-[#8E8B82] italic border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40">
+                    Loading industry domains...
+                  </div>
+                ) : catalog.industries.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-[#8E8B82] italic border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40">
+                    No industry domains are configured yet.
+                  </div>
+                ) : (
+                  <div className={activeDomain ? "flex flex-col gap-2" : "grid grid-cols-2 gap-2"}>
+                    {catalog.industries
+                      .filter(industry => !activeDomain || activeDomain === industry.id)
+                      .map(industry => {
+                        const { Logo, color } = getDomainVisual(industry.name);
+                        const isSelected = activeDomain === industry.id;
 
-                    if (isSelected) {
-                      return (
-                        <div
-                          key={domainKey}
-                          className="p-3 bg-[#E31837] text-white rounded-lg shadow-sm border border-[#C0152F] flex items-center justify-between transition-all"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 text-white shadow-inner">
-                              {d.icon}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-sm font-bold block leading-tight tracking-wide text-white truncate">
-                                {d.name}
+                        if (isSelected) {
+                          return (
+                            <div
+                              key={industry.id}
+                              className="p-3 bg-[#E31837] text-white rounded-lg shadow-sm border border-[#C0152F] flex items-center justify-between transition-all"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 text-white shadow-inner">
+                                  <Logo className={`w-6 h-6 ${color}`} />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-sm font-bold block leading-tight tracking-wide text-white truncate">
+                                    {industry.name}
+                                  </span>
+                                  <span className="text-[11px] text-white/80 font-mono block mt-0.5 truncate">
+                                    {catalog.subDomainsState === 'ready'
+                                      ? `${catalog.subDomains.length} Sub-domain${catalog.subDomains.length === 1 ? '' : 's'}`
+                                      : 'Loading sub-domains...'}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] bg-white/25 border border-white/40 px-2 py-0.5 rounded-full text-white font-mono font-semibold shrink-0 ml-2 shadow-2xs">
+                                Active Domain
                               </span>
-                              <span className="text-[11px] text-white/80 font-mono block mt-0.5 truncate">
-                                {domainSubtitles[domainKey]} • {d.standards.length} Standards
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={industry.id}
+                            type="button"
+                            onClick={() => handleDomainChange(industry.id)}
+                            className="group p-2.5 rounded-lg border border-[#E5DFD3] bg-[#F6F2EA]/70 hover:bg-white hover:border-[#E31837] text-left transition-all cursor-pointer shadow-2xs flex items-center gap-2.5 focus-techm"
+                          >
+                            <div className="w-9 h-9 rounded-md bg-white border border-[#E5DFD3] group-hover:border-[#E31837]/40 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-all">
+                              <Logo className={`w-6 h-6 ${color}`} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-bold text-[#29251D] group-hover:text-[#E31837] block leading-snug truncate transition-colors">
+                                {industry.name}
                               </span>
                             </div>
-                          </div>
-                          <span className="text-[10px] bg-white/25 border border-white/40 px-2 py-0.5 rounded-full text-white font-mono font-semibold shrink-0 ml-2 shadow-2xs">
-                            Active Domain
-                          </span>
-                        </div>
-                      );
-                    }
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
 
-                    return (
-                      <button
-                        key={domainKey}
-                        type="button"
-                        onClick={() => handleDomainChange(domainKey)}
-                        className="group p-2.5 rounded-lg border border-[#E5DFD3] bg-[#F6F2EA]/70 hover:bg-white hover:border-[#E31837] text-left transition-all cursor-pointer shadow-2xs flex items-center gap-2.5 focus-techm"
-                      >
-                        <div className="w-9 h-9 rounded-md bg-white border border-[#E5DFD3] group-hover:border-[#E31837]/40 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-all">
-                          {d.icon}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-xs font-bold text-[#29251D] group-hover:text-[#E31837] block leading-snug truncate transition-colors">
-                            {d.name}
-                          </span>
-                          <span className="text-[10px] text-[#4D4D4F] block font-mono leading-none mt-0.5 truncate">
-                            {domainSubtitles[domainKey]}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Use Case Dropdown Selection Box below Telecom */}
-                {activeDomain === 'telecom' && (
-                  <div className="mt-2.5 p-2 bg-[#F6F2EA] rounded-md border border-[#E5DFD3] space-y-1.5">
-                    <div className="flex items-center justify-between">
+                {/* Sub-domain and Use Case dropdowns (GET /catalog/sub-domains, GET /catalog/use-cases) */}
+                {activeDomain && (
+                  <div className="mt-2.5 p-2 bg-[#F6F2EA] rounded-md border border-[#E5DFD3] space-y-2">
+                    <div className="space-y-1.5">
                       <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
-                        Use case
+                        Sub-domain
                       </label>
-                      {telecomSubdomain === 'prepaid_customer' && (
-                        <span className="text-[9px] font-mono font-bold text-[#E31837] bg-[#E31837]/10 px-1.5 py-0.5 rounded">
-                          Prepaid Active
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <select
-                        value={telecomSubdomain}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTelecomSubdomain(val);
-                          setSelectedScenario('');
-                          setOpenJourneyIndex(-1);
-                          setPromptText('');
-                          if (val && TELECOM_SUBDOMAIN_DATA[val]) {
-                            const subData = TELECOM_SUBDOMAIN_DATA[val];
-                            setCustomerJourneys(subData.journeys);
-                            setActiveStandards(subData.standards);
-                            showToast('Scoped use case: Prepaid Customer — Low Balance, Data Depletion & Cross-Journey loaded');
-                          } else {
-                            setCustomerJourneys([]);
-                            setActiveStandards(DOMAINS.telecom.standards);
-                          }
-                        }}
-                        className={`w-full text-xs font-medium bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer shadow-2xs ${
-                          !telecomSubdomain ? 'text-[#8E8B82] italic' : 'text-[#29251D] font-semibold'
-                        }`}
-                      >
-                        <option value="" className="text-[#8E8B82] not-italic">
-                          ---select-----
-                        </option>
-                        {TELECOM_SUBDOMAINS.map(sub => (
-                          <option key={sub.id} value={sub.id} className="text-[#29251D] py-1 not-italic font-medium">
-                            {sub.label}
+                      <div className="relative">
+                        <select
+                          value={catalog.subDomainId}
+                          onChange={e => handleSubDomainChange(e.target.value)}
+                          disabled={catalog.subDomainsState !== 'ready' || catalog.subDomains.length === 0}
+                          className={`w-full text-xs font-medium bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                            !catalog.subDomainId ? 'text-[#8E8B82] italic' : 'text-[#29251D] font-semibold'
+                          }`}
+                        >
+                          <option value="" className="text-[#8E8B82] not-italic">
+                            {catalog.subDomainsState === 'loading' ? 'Loading...' : '---select-----'}
                           </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          {catalog.subDomains.map(sub => (
+                            <option key={sub.id} value={sub.id} className="text-[#29251D] py-1 not-italic font-medium">
+                              {sub.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                      </div>
                     </div>
-                    {telecomSubdomain === 'prepaid_customer' ? (
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                          Use case
+                        </label>
+                        {useCaseId && (
+                          <span className="text-[9px] font-mono font-bold text-[#E31837] bg-[#E31837]/10 px-1.5 py-0.5 rounded">
+                            Use Case Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={useCaseId}
+                          onChange={e => handleUseCaseChange(e.target.value)}
+                          disabled={!catalog.subDomainId || catalog.useCasesState !== 'ready' || catalog.useCases.length === 0}
+                          className={`w-full text-xs font-medium bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                            !useCaseId ? 'text-[#8E8B82] italic' : 'text-[#29251D] font-semibold'
+                          }`}
+                        >
+                          <option value="" className="text-[#8E8B82] not-italic">
+                            {catalog.useCasesState === 'loading' ? 'Loading...' : '---select-----'}
+                          </option>
+                          {catalog.useCases.map(item => (
+                            <option key={item.id} value={item.id} className="text-[#29251D] py-1 not-italic font-medium">
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                        Country
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={countryCode}
+                          onChange={e => setCountryCode(e.target.value)}
+                          disabled={countries.length === 0}
+                          className="w-full text-xs font-semibold text-[#29251D] bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {countries.length === 0 && <option value={countryCode}>{countryCode}</option>}
+                          {countries.map(c => (
+                            <option key={c.code} value={c.code}>
+                              {c.name} ({c.currency})
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+
+                    {useCaseId && catalog.journeysState === 'ready' ? (
                       <div className="flex items-center justify-between text-[10px] text-[#247153] pt-0.5">
                         <span className="flex items-center gap-1 font-medium">
                           <CheckCircle2 className="w-3 h-3 text-[#247153]" />
-                          Prepaid Scenarios Loaded
+                          Scenarios Loaded
                         </span>
                         <span className="font-mono text-[#E31837] font-semibold">
-                          3 Journeys Active
+                          {customerJourneys.length} Journey{customerJourneys.length === 1 ? '' : 's'} Active
                         </span>
                       </div>
                     ) : (
                       <p className="text-[10px] text-[#8E8B82] italic pt-0.5">
-                        Select a use case to load customer journeys
+                        {!catalog.subDomainId ? 'Select a sub-domain, then a use case, to load customer journeys' : 'Select a use case to load customer journeys'}
                       </p>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Customer Journey Accordion */}
-              <div className={activeDomain === 'telecom' ? 'block' : 'hidden'}>
+              {/* Customer Journey Accordion (GET /catalog/journeys, GET /catalog/scenarios) */}
+              <div className={activeDomain ? 'block' : 'hidden'}>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
                     Customer Journey & Business Scenarios
                   </label>
                   <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                    telecomSubdomain === 'prepaid_customer'
+                    customerJourneys.length > 0
                       ? 'text-[#E31837] bg-[#E31837]/10'
-                      : customerJourneys.length > 0
-                        ? 'text-[#185F8D] bg-[#185F8D]/10'
-                        : 'text-[#4D4D4F] bg-[#F6F2EA] border border-[#E5DFD3]'
+                      : 'text-[#4D4D4F] bg-[#F6F2EA] border border-[#E5DFD3]'
                   }`}>
-                    {telecomSubdomain === 'prepaid_customer'
-                      ? '3 Journeys • 25 Scenarios'
+                    {catalog.journeysState === 'loading'
+                      ? 'Loading...'
                       : customerJourneys.length > 0
-                        ? `${customerJourneys.length} Journeys • ${customerJourneys.reduce((acc, j) => acc + j.subScenarios.length, 0)} Scenarios`
+                        ? `${customerJourneys.length} Journeys • ${customerJourneys.reduce((acc, j) => acc + j.scenarios.length, 0)} Scenarios`
                         : 'Awaiting Use Case Selection'}
                   </span>
                 </div>
                 <div className="border border-[#E5DFD3] rounded-md divide-y divide-[#E5DFD3] bg-[#FFFFFF] overflow-hidden shadow-2xs">
                   {customerJourneys.length === 0 ? (
                     <div className="p-3 bg-white text-center text-xs text-[#8E8B82] italic">
-                      Select a Use Case from the dropdown above to load customer journeys
+                      {catalog.journeysState === 'loading'
+                        ? 'Loading customer journeys...'
+                        : catalog.journeysState === 'ready'
+                          ? 'No customer journeys are configured for this use case yet'
+                          : 'Select a Use Case from the dropdown above to load customer journeys'}
                     </div>
                   ) : (
                     customerJourneys.map((journey, idx) => {
                       const isOpen = openJourneyIndex === idx;
-                      const isJourneyActive = journey.subScenarios.includes(selectedScenario);
+                      const isJourneyActive = journey.scenarios.some(s => s.scenarioId === selectedScenario);
 
                       return (
-                        <div key={journey.title} className="text-xs">
+                        <div key={journey.id} className="text-xs">
                           <button
                             onClick={() => setOpenJourneyIndex(isOpen ? -1 : idx)}
                             className={`w-full px-2.5 py-2.5 flex items-center justify-between text-left font-medium transition-colors focus-techm cursor-pointer ${
@@ -3190,10 +2555,10 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                                     : 'text-[#29251D] font-medium'
                                 }`}
                               >
-                                {journey.title}
+                                {idx + 1}. {journey.name}
                               </span>
                               <span className="text-[10px] text-[#4D4D4F] block">
-                                {journey.subScenarios.length} business scenarios
+                                {journey.scenarios.length} business scenarios
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -3212,31 +2577,14 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
 
                           {isOpen && (
                             <div className="px-2 pb-2 pt-1 space-y-1 bg-[#F6F2EA]/40 border-t border-[#E5DFD3]/60 max-h-64 overflow-y-auto">
-                              {journey.subScenarios.map((sub) => {
-                                const isSelected = selectedScenario === sub;
-                                const match = sub.match(/^([A-Z]{2}-\d{2})\s*(.*)$/);
-                                const code = match ? match[1] : '';
-                                const title = match ? match[2] : sub;
+                              {journey.scenarios.map(scenario => {
+                                const isSelected = selectedScenario === scenario.scenarioId;
 
                                 return (
                                   <button
-                                    key={sub}
-                                    onClick={() => {
-                                      if (isSelected) {
-                                        setSelectedScenario('');
-                                        setPromptText('');
-                                        showToast(`Deselected scenario: ${sub}`);
-                                      } else {
-                                        setSelectedScenario(sub);
-                                        const spec =
-                                          SCENARIO_SPECIFICATIONS[sub] ||
-                                          SCENARIO_SPECIFICATIONS[title] ||
-                                          `Incorporate ${sub} telemetry into synthetic generation pipeline with calibrated statistical distributions and Pandera AST constraints.`;
-                                        setPromptText(spec);
-                                        showToast(`Selected scenario: ${sub} — specification loaded`);
-                                      }
-                                    }}
-                                    title={isSelected ? `Click to deselect ${sub}` : `Click to select ${sub}`}
+                                    key={scenario.scenarioId}
+                                    onClick={() => void handleScenarioSelect(scenario)}
+                                    title={isSelected ? `Click to deselect ${scenario.label}` : `Click to select ${scenario.label}`}
                                     className={`w-full text-left px-2 py-1.5 rounded text-[11px] flex items-center justify-between transition-colors cursor-pointer group ${
                                       isSelected
                                         ? 'bg-[#FFFFFF] text-[#E31837] font-semibold border border-[#E5DFD3] shadow-2xs ring-1 ring-[#E31837]/30'
@@ -3244,20 +2592,20 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 min-w-0 truncate pr-1">
-                                      {code ? (
-                                        <span
-                                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
-                                            isSelected
-                                              ? 'bg-[#E31837] text-white border-[#E31837]'
-                                              : 'bg-[#FFFFFF] text-[#29251D] border-[#E5DFD3] group-hover:border-[#29251D]'
-                                          }`}
-                                        >
-                                          {code}
-                                        </span>
-                                      ) : null}
-                                      <span className="truncate">{title}</span>
+                                      <span
+                                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
+                                          isSelected
+                                            ? 'bg-[#E31837] text-white border-[#E31837]'
+                                            : 'bg-[#FFFFFF] text-[#29251D] border-[#E5DFD3] group-hover:border-[#29251D]'
+                                        }`}
+                                      >
+                                        {scenario.scenarioId}
+                                      </span>
+                                      <span className="truncate">{scenario.scenarioType}</span>
                                     </div>
-                                    {isSelected && <Check className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1" />}
+                                    {isSelected && (isScenarioLoading
+                                      ? <RefreshCw className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1 animate-spin" />
+                                      : <Check className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1" />)}
                                   </button>
                                 );
                               })}
@@ -3271,7 +2619,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
               </div>
 
               {/* Multi-Modal Modalities Section: Displayed once user has selected Telecommunication, Use Case, and Customer Journey */}
-              {activeDomain === 'telecom' && telecomSubdomain && selectedScenario && (
+              {activeDomain && useCaseId && selectedScenario && (
                 <div className="relative pt-2.5 border-t border-[#E5DFD3] animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
@@ -3493,9 +2841,10 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                   {(() => {
                     const hasSelectedModality = Object.values(modalities).some(Boolean);
                     const canProceed = Boolean(
-                      activeDomain === 'telecom' &&
-                      telecomSubdomain &&
-                      selectedScenario &&
+                      activeDomain &&
+                      useCaseId &&
+                      scenarioDetail &&
+                      !isScenarioLoading &&
                       hasSelectedModality &&
                       !isPipelineRunning
                     );
@@ -3504,20 +2853,12 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       <>
                         <button
                           onClick={() => {
-                            if (!selectedScenario) {
-                              showToast('Please select a customer journey scenario first');
-                              return;
-                            }
-                            if (!hasSelectedModality) {
-                              showToast('Please select at least one modality type');
-                              return;
-                            }
                             if (!pipelineRun) {
-                              handleRunPipeline();
+                              void handleRunPipeline();
+                              return;
                             }
                             setMaxUnlockedStep(prev => Math.max(prev, 2) as 1 | 2 | 3);
                             setWorkflowStep(2);
-                            showToast('Step 1 complete — Moving to Schema (Pane 2)');
                           }}
                           disabled={!canProceed}
                           className={`w-full py-2.5 px-3 rounded-md text-xs font-semibold shadow-xs flex items-center justify-center gap-2 transition-all focus-techm ${
@@ -3526,11 +2867,13 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                               : 'bg-[#E31837] hover:bg-[#b5122b] text-white cursor-pointer ring-2 ring-[#E31837]/20 shadow-xs'
                           }`}
                           title={
-                            !telecomSubdomain
+                            !useCaseId
                               ? 'Select a use case from the dropdown above'
                               : !selectedScenario
                                 ? 'Select a customer journey scenario above to load modalities'
-                                : !hasSelectedModality
+                                : isScenarioLoading
+                                  ? 'Loading the selected scenario...'
+                                  : !hasSelectedModality
                                   ? 'Select at least 1 modality type above to activate this button'
                                   : isPipelineRunning
                                     ? 'Synthesizing Pipeline...'
@@ -3609,18 +2952,17 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                     </div>
 
                     {selectedScenario ? (() => {
-                      const parentJourney = customerJourneys.find(j => j.subScenarios.includes(selectedScenario));
-                      const journeyTitle = parentJourney?.title || 'Prepaid Customer Journey';
-                      const journeyNumber = journeyTitle.match(/^(\d+)/)?.[1] || '1';
+                      const journeyIndex = customerJourneys.findIndex(j => j.scenarios.some(s => s.scenarioId === selectedScenario));
+                      const parentJourney = journeyIndex >= 0 ? customerJourneys[journeyIndex] : undefined;
                       return (
                         <div className="p-3 rounded-md border border-[#E31837] bg-[#FDF9F0] shadow-2xs ring-1 ring-[#E31837]">
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2">
                               <span className="w-5 h-5 rounded-full bg-[#E31837] text-white text-[11px] font-mono font-bold flex items-center justify-center shadow-2xs">
-                                {journeyNumber}
+                                {journeyIndex + 1 || 1}
                               </span>
                               <span className="text-xs font-bold text-[#29251D]">
-                                {journeyTitle.replace(/^\d+\.\s*/, '')}
+                                {parentJourney?.name ?? 'Customer Journey'}
                               </span>
                             </div>
                             <span className="text-[9px] px-1.5 py-0.5 bg-[#E31837] text-white font-mono font-semibold rounded uppercase tracking-wider">
@@ -3628,15 +2970,13 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                             </span>
                           </div>
                           <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2">
-                            {telecomSubdomain === 'prepaid_customer'
-                              ? 'Prepaid balance depletion triggers, automated recharge thresholds, USSD/App payment gateway settlement, and churn early-warning telemetry.'
-                              : 'Domain-specific contractual constraints, synthetic telemetry distributions, and automated QA validation rules.'}
+                            {scenarioDetail?.businessScenario || (isScenarioLoading ? 'Loading the scenario description...' : 'No business description is configured for this scenario.')}
                           </p>
                           <div className="flex items-center justify-between pt-2 border-t border-[#E5DFD3] text-[11px]">
                             <span className="text-[#4D4D4F]">
                               Active Scenario:{' '}
                               <strong className="text-[#29251D] font-mono font-semibold">
-                                {selectedScenario}
+                                {scenarioDetail?.label ?? selectedScenario}
                               </strong>
                             </span>
                             <span className="text-[10px] text-[#247153] font-medium flex items-center gap-1">
@@ -3649,21 +2989,17 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                     })() : (
                       <div className="p-3.5 rounded-md border border-dashed border-[#E5DFD3] bg-[#F6F2EA]/40 text-center">
                         <div className="text-xs font-semibold text-[#29251D] mb-1">
-                          {telecomSubdomain === 'prepaid_customer'
-                            ? 'Prepaid Customer Use Case Active'
-                            : telecomSubdomain
-                              ? `${TELECOM_SUBDOMAINS.find(s => s.id === telecomSubdomain)?.label || 'Use Case'} Active`
-                              : 'No Use Case Selected'}
+                          {useCaseId
+                            ? `${catalog.useCases.find(item => item.id === useCaseId)?.name ?? 'Use Case'} Active`
+                            : 'No Use Case Selected'}
                         </div>
                         <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2 max-w-sm mx-auto">
-                          {telecomSubdomain === 'prepaid_customer'
-                            ? 'Select a customer journey scenario (Low Balance & Top-up, Data Depletion & Upsell, or Cross-Journey) from Pane 1 to configure your business requirements.'
-                            : telecomSubdomain
-                              ? 'Select a scenario from Pane 1 to configure your synthesis requirements.'
-                              : 'Select a use case from Pane 1 to load customer journeys and scenarios.'}
+                          {useCaseId
+                            ? 'Select a scenario from Pane 1 to configure your synthesis requirements.'
+                            : 'Select a use case from Pane 1 to load customer journeys and scenarios.'}
                         </p>
                         <div className="inline-flex items-center gap-1 text-[10px] font-mono text-[#4D4D4F] bg-white border border-[#E5DFD3] px-2 py-0.5 rounded shadow-2xs">
-                          <span>{telecomSubdomain ? 'Awaiting Scenario Selection' : 'Awaiting Use Case Selection'}</span>
+                          <span>{useCaseId ? 'Awaiting Scenario Selection' : 'Awaiting Use Case Selection'}</span>
                         </div>
                       </div>
                     )}
@@ -3683,6 +3019,35 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                 </div>
               ) : (
                 <>
+              {/* Schema <-> generated records switch (shown once POST /scenario/generate has returned) */}
+              {generated && (activeTab === 'table' || activeTab === 'records') && (
+                <div className="flex items-center justify-between pb-2">
+                  <div className="inline-flex items-center p-0.5 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('table')}
+                      className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                        activeTab === 'table' ? 'bg-white text-[#29251D] font-bold shadow-2xs' : 'text-[#4D4D4F] hover:text-[#29251D] font-medium'
+                      }`}
+                    >
+                      Schema ({fields.length} Fields)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('records')}
+                      className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
+                        activeTab === 'records' ? 'bg-white text-[#29251D] font-bold shadow-2xs' : 'text-[#4D4D4F] hover:text-[#29251D] font-medium'
+                      }`}
+                    >
+                      Generated Data ({generated.total_records.toLocaleString()} records)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* GENERATED DATA: accordion per user (transactional) or table (aggregational) */}
+              {activeTab === 'records' && generated && <GeneratedRecords result={generated} />}
+
               {/* TAB 1: DATA CONTRACT TABLE */}
               {activeTab === 'table' && (
                 <div className="space-y-3">
@@ -3696,6 +3061,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                         {fields.length} Fields Active
                       </span>
                     </div>
+                    {/* DISABLED: 'Recommended Variables' dialog: not backed by the API yet
                     <button
                       onClick={() => setShowRecommendModal(true)}
                       className="px-2.5 py-1 text-xs rounded bg-[#FFFFFF] border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors"
@@ -3703,9 +3069,11 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       <Sparkles className="w-3.5 h-3.5 text-[#E31837]" />
                       <span>Recommended Variables</span>
                     </button>
+                    */}
                   </div>
 
-                  {/* Add Field Form (collapsible) */}
+                  {/* DISABLED: adding a field by hand is not supported for a source-backed schema
+                  {/ * Add Field Form (collapsible) * /}
                   {isAddingField && (
                     <div className="p-3 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md space-y-2 text-xs">
                       <div className="flex items-center justify-between font-semibold text-[#29251D]">
@@ -3769,14 +3137,14 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       </div>
                     </div>
                   )}
-
+                  */}
                   {/* High-Density Data Contract Table */}
                   <div className="border border-[#E5DFD3] rounded-md overflow-hidden bg-white">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F] font-mono text-[11px]">
                           <th className="py-2 px-3 font-semibold">Field Name</th>
-                          <th className="py-2 px-3 font-semibold">Standard Reference</th>
+                          <th className="py-2 px-3 font-semibold">Source</th>
                           <th className="py-2 px-3 font-semibold">Physical Type</th>
                           <th className="py-2 px-3 font-semibold">Constraints / Distribution</th>
                           <th className="py-2 px-3 font-semibold">Sensitivity</th>
@@ -3876,6 +3244,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
 
                               <td className="py-2 px-2 text-right">
                                 <div className="flex items-center justify-end gap-1">
+                                  {/* DISABLED: editing constraints is not backed by the API yet
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -3886,13 +3255,15 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                                   >
                                     <Edit3 className="w-3 h-3" />
                                   </button>
+                                  */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteField(field.id, field.name);
+                                      handleDeleteField(field);
                                     }}
-                                    title="Delete Field"
-                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#9C1936] hover:bg-white"
+                                    disabled={field.required}
+                                    title={field.required ? 'Required field (cannot be removed)' : 'Delete Field'}
+                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#9C1936] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#4D4D4F]"
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
@@ -3907,7 +3278,8 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                 </div>
               )}
 
-              {/* TAB 2: INTERACTIVE ER GRAPH */}
+              {/* DISABLED: ER graph, Pandera AST and stage-log tabs showed fixed sample content and are not reachable from the UI
+              {/ * TAB 2: INTERACTIVE ER GRAPH * /}
               {activeTab === 'graph' && (
                 <div className="h-full border border-[#E5DFD3] rounded-md bg-[#F6F2EA]/30 p-4 space-y-4">
                   <div className="flex items-center justify-between text-xs text-[#4D4D4F]">
@@ -3916,7 +3288,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Node 1: Subscriber Account */}
+                    {/ * Node 1: Subscriber Account * /}
                     <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
                       <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
                         <span className="font-semibold text-xs text-[#29251D]">tmf_subscriber_account</span>
@@ -3938,7 +3310,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       </div>
                     </div>
 
-                    {/* Node 2: 5G CDR Stream */}
+                    {/ * Node 2: 5G CDR Stream * /}
                     <div className="bg-white border border-[#8A5200] rounded-lg p-3 shadow-2xs">
                       <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
                         <span className="font-semibold text-xs text-[#29251D]">cdr_telemetry_stream</span>
@@ -3960,7 +3332,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       </div>
                     </div>
 
-                    {/* Node 3: Product Ordering */}
+                    {/ * Node 3: Product Ordering * /}
                     <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
                       <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
                         <span className="font-semibold text-xs text-[#29251D]">tmf_product_order</span>
@@ -3978,7 +3350,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                       </div>
                     </div>
 
-                    {/* Node 4: Churn Propensity */}
+                    {/ * Node 4: Churn Propensity * /}
                     <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
                       <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
                         <span className="font-semibold text-xs text-[#29251D]">churn_prediction_target</span>
@@ -3999,7 +3371,7 @@ ${sampleRecords.map(r => `  ('${r.msisdn}', ${r.account_balance}, ${r.data_deple
                 </div>
               )}
 
-              {/* TAB 3: AST RULE MATRIX */}
+              {/ * TAB 3: AST RULE MATRIX * /}
               {activeTab === 'ast' && (
                 <div className="space-y-3">
                   <div className="p-3 bg-white border border-[#E5DFD3] rounded-md space-y-2">
@@ -4024,7 +3396,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     </pre>
                   </div>
 
-                  {/* Live AST Sandbox */}
+                  {/ * Live AST Sandbox * /}
                   <div className="p-3 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md space-y-2">
                     <span className="text-xs font-semibold text-[#29251D]">Interactive AST Expression Evaluator</span>
                     <div className="flex gap-2">
@@ -4066,7 +3438,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 </div>
               )}
 
-              {/* TAB 4: STAGE DETAILS & PIPELINE LOGS */}
+              {/ * TAB 4: STAGE DETAILS & PIPELINE LOGS * /}
               {activeTab === 'stageDetails' && (
                 <div className="space-y-3 text-xs">
                   <div className="p-3 bg-white border border-[#E5DFD3] rounded-md space-y-2">
@@ -4114,6 +3486,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                   </div>
                 </div>
               )}
+              */}
                 </>
               )}
             </div>
@@ -4122,17 +3495,12 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
             <div className="h-12 min-h-12 border-t border-[#E5DFD3] bg-[#F6F2EA] px-3 flex items-center justify-end">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    handleApproveSchema();
-                    setMaxUnlockedStep(3);
-                    setWorkflowStep(3);
-                    showToast('Schema Approved — Unlocking Step 3: Core Data Generation');
-                  }}
-                  disabled={activeDomain !== 'telecom' || !pipelineRun}
+                  onClick={() => void handleApproveSchema()}
+                  disabled={!pipelineRun || !draft || isConfirming}
                   className="px-3.5 py-1.5 text-xs bg-[#247153] hover:bg-[#1a553e] disabled:opacity-50 text-white rounded font-medium flex items-center gap-1.5 shadow-xs focus-techm transition-all cursor-pointer"
                 >
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  <span>Approve & Proceed to Core Data Generation →</span>
+                  {isConfirming ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
+                  <span>{isConfirming ? 'Approving schema...' : 'Approve & Proceed to Core Data Generation →'}</span>
                 </button>
               </div>
             </div>
@@ -4201,7 +3569,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                       Record Volume
                     </label>
                     <div className="flex gap-1">
-                      {[10000, 50000, 100000, 500000].map(val => (
+                      {RECORD_PRESETS.map(val => (
                         <button
                           key={val}
                           onClick={() => setRecordCount(val)}
@@ -4220,10 +3588,15 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     id={recordCountInputId}
                     type="number"
                     value={recordCount}
-                    placeholder="Enter record volume (e.g. 100000)"
+                    placeholder={`Enter record volume (default ${DEFAULT_RECORD_COUNT.toLocaleString()})`}
+                    min={1}
+                    max={maxRecordsFor((confirmed ?? draft)?.typeOfData)}
                     onChange={e => setRecordCount(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
                   />
+                  <p className="mt-1 text-[10px] text-[#8E8B82]">
+                    Up to {maxRecordsFor((confirmed ?? draft)?.typeOfData).toLocaleString()} records per run.
+                  </p>
                 </div>
 
                 {/* Reproducibility Seed - Hidden by default using downward arrow option */}
@@ -4282,6 +3655,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           Random Seed Value
                         </label>
                         <div className="flex items-center gap-1.5">
+                          {/* DISABLED: seed suggestions were fixed sample text
                           <button
                             type="button"
                             onClick={() => setShowSeedSuggestions(prev => !prev)}
@@ -4298,6 +3672,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                               {typeof recordCount === 'number' && recordCount > 0 ? (recordCount >= 1000 ? `${recordCount / 1000}K` : recordCount) : '100K'}
                             </span>
                           </button>
+                          */}
                           <button
                             type="button"
                             onClick={() => {
@@ -4317,12 +3692,13 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         id={randomSeedInputId}
                         type="number"
                         value={randomSeed}
-                        placeholder="Enter seed (e.g. 42901)"
+                        placeholder="Optional seed (a whole number, 0 to 2147483647)"
                         onChange={e => setRandomSeed(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
                       />
 
-                      {/* Volume-calibrated inline seed suggestion pill */}
+                      {/* DISABLED: volume-calibrated seed suggestions were fixed sample text; any seed reproduces the same dataset
+                      {/ * Volume-calibrated inline seed suggestion pill * /}
                       {(() => {
                         const currentVol = typeof recordCount === 'number' && recordCount > 0 ? recordCount : 100000;
                         const topSuggested = getVolumeSeedSuggestions(recordCount)[0];
@@ -4347,7 +3723,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         );
                       })()}
 
-                      {/* Seed Suggestions Popup based on record volume */}
+                      {/ * Seed Suggestions Popup based on record volume * /}
                       {showSeedSuggestions && (
                         <div className="mt-1.5 p-2.5 bg-white border border-[#E5DFD3] rounded-md shadow-xl space-y-2 z-30 relative animate-in fade-in duration-150">
                           <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5">
@@ -4367,7 +3743,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                             </button>
                           </div>
 
-                          {/* Quick Volume Switcher inside popup to test seed suggestions */}
+                          {/ * Quick Volume Switcher inside popup to test seed suggestions * /}
                           <div className="flex items-center justify-between bg-[#F6F2EA]/60 p-1.5 rounded border border-[#E5DFD3] text-[10px]">
                             <span className="text-[#4D4D4F] font-medium">Test volume:</span>
                             <div className="flex gap-1">
@@ -4450,98 +3826,86 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           </div>
                         </div>
                       )}
+                      */}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* QA & Privacy Verification Scorecard with Hover Reason Popovers */}
+              {/* Quality verification: the validation report of the generated dataset (POST /scenario/generate) */}
               <div className="mt-5 pt-3.5 border-t border-[#E5DFD3]">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
-                    QA & Privacy Verification
+                    Quality Verification
                   </label>
+                  {generated && (
+                    <span className="text-[10px] font-mono text-[#4D4D4F]">
+                      {(generated.validation_report.rows ?? generated.total_records).toLocaleString()} rows checked
+                    </span>
+                  )}
                 </div>
 
                 {(() => {
-                  const hasAstFlag = fields.some(f => f.qaStatus === 'FLAGGED');
-                  const currentVol = typeof recordCount === 'number' && recordCount > 0 ? recordCount : 100000;
-                  const diffPrivacyQualifies = !(typeof recordCount === 'number' && recordCount < 20000);
-                  const mutualInfoQualifies = normalAnomalySplit >= 60;
-                  const ksDriftQualifies = normalAnomalySplit >= 55;
+                  const report = generated?.validation_report;
+                  const realism = report?.components?.realism;
+                  const rowsChecked = report?.rows ?? generated?.total_records ?? 0;
+                  const rowsFailed = report?.rows_failed ?? 0;
+                  const failedInvariants = report?.invariants?.failed?.length ?? 0;
 
                   const qaParams = [
                     {
-                      id: 'ast',
-                      title: 'Pandera AST',
-                      score: hasAstFlag ? '12 Pass / 1 Flag' : '13 Pass / 0 Flags',
-                      qualifies: !hasAstFlag,
-                      isFlagged: hasAstFlag,
-                      threshold: '13/13 AST Rules (Zero Schema / FK Flags)',
-                      failHeader: 'Pandera AST Constraint Flagged',
-                      failReason: "Foreign key integrity warning on 'cdr_event_raw'. Missing explicit gNodeB session FK linkage to 3GPP charging telemetry. Fails Stage 3 deterministic AST rules.",
-                      passReason: 'All 13 Pandera AST rules validated. Zero contractual schema constraint or foreign key mismatches.',
-                      remedy: "Click 'Auto-Fix AST Constraint' in Data Contract Table to repair foreign key mapping."
+                      id: 'overall',
+                      title: 'Overall Quality',
+                      score: pct(report?.overall),
+                      qualifies: report?.verdict === 'pass',
+                      note: `Verdict: ${report?.verdict ?? 'n/a'}`
                     },
                     {
-                      id: 'dp',
-                      title: 'SDC Diff Privacy',
-                      score: !diffPrivacyQualifies ? 'Fail (ε=1.4 > 1.0)' : 'Pass (ε=0.5)',
-                      qualifies: diffPrivacyQualifies,
-                      isFlagged: !diffPrivacyQualifies,
-                      threshold: 'Differential Privacy ε ≤ 1.0 (GDPR Art. 9)',
-                      failHeader: 'Differential Privacy Budget Exceeded',
-                      failReason: `Differential privacy budget exhausted (ε=1.4 > certified limit 1.0). At ${currentVol.toLocaleString()} records, localized re-identification risk on hashed MSISDN exceeds 0.05% under GDPR Article 9.`,
-                      passReason: 'Differential privacy budget ε=0.5 meets NIST SP 800-208 and HIPAA Safe Harbor standards. Zero re-identification leakage detected.',
-                      remedy: 'Increase Record Volume to at least 20,000 records (e.g. 50K or 100K) to distribute privacy noise budget.'
+                      id: 'consistency',
+                      title: 'Consistency',
+                      score: pct(report?.components?.consistency),
+                      qualifies: failedInvariants === 0,
+                      note: `${report?.invariants?.evaluated ?? 0} rules checked, ${failedInvariants} failed`
                     },
                     {
-                      id: 'mi',
-                      title: 'Mutual Info',
-                      score: !mutualInfoQualifies ? '0.74 (Fail < 0.85)' : '0.94 vs Truth',
-                      qualifies: mutualInfoQualifies,
-                      isFlagged: !mutualInfoQualifies,
-                      threshold: 'Mutual Information Fidelity ≥ 0.85',
-                      failHeader: 'Feature Correlation Distorted',
-                      failReason: `Mutual Information score (0.74) is below qualification threshold (≥ 0.85). Excessive anomaly ratio of ${100 - normalAnomalySplit}% distorts empirical covariance between subscriber balance and 5G slice handoff.`,
-                      passReason: 'Mutual information score (0.94) exceeds qualification threshold (≥ 0.85). Multi-modal feature dependencies faithfully preserved.',
-                      remedy: 'Adjust Event Split slider back to recommended 70% Normal / 30% Anomaly.'
+                      id: 'clean_rows',
+                      title: 'Clean Rows',
+                      score: pct(report?.components?.clean_rows),
+                      qualifies: rowsFailed === 0,
+                      note: `${rowsFailed.toLocaleString()} of ${rowsChecked.toLocaleString()} rows failed a check`
                     },
                     {
-                      id: 'ks',
-                      title: 'KS-Test Drift',
-                      score: !ksDriftQualifies ? '0.09 (p < 0.05 Fail)' : '0.02 (p > 0.05)',
-                      qualifies: ksDriftQualifies,
-                      isFlagged: !ksDriftQualifies,
-                      threshold: 'KS Drift Statistic p > 0.05 (α = 0.05)',
-                      failHeader: 'Continuous Distribution Drift Detected',
-                      failReason: 'Kolmogorov-Smirnov test p-value = 0.014 is below critical alpha threshold (α = 0.05). Heavy anomaly tail induces statistically significant continuous numerical distribution divergence (D = 0.09).',
-                      passReason: 'Kolmogorov-Smirnov statistic D = 0.02 with p-value = 0.42 (p > 0.05). Null hypothesis of identical empirical distributions accepted with 95% confidence.',
-                      remedy: 'Recalibrate Event Split closer to standard 70% Normal / 30% Anomaly baseline.'
+                      id: 'realism',
+                      title: 'Realism',
+                      score: pct(realism),
+                      qualifies: typeof realism === 'number' && realism >= 0.9,
+                      note: 'Passes at 90.0% or higher'
                     }
                   ];
 
                   return (
                     <div className="grid grid-cols-2 gap-1.5">
-                      {qaParams.map((param, index) => {
-                        const isLeftCol = index % 2 === 0;
+                      {qaParams.map(param => {
+                        const pending = !report;
+                        const flagged = !pending && !param.qualifies;
                         return (
                           <div
                             key={param.id}
-                            onMouseEnter={() => setHoveredQaParam(param.id)}
-                            onMouseLeave={() => setHoveredQaParam(null)}
-                            className={`p-2 rounded border relative transition-all cursor-pointer ${
-                              param.isFlagged
+                            title={pending ? 'Run the data generation to see the quality report' : param.note}
+                            className={`p-2 rounded border relative transition-all ${
+                              flagged
                                 ? 'bg-amber-50/80 border-amber-400 ring-1 ring-amber-400/50 shadow-2xs'
-                                : 'bg-[#F6F2EA] border-[#E5DFD3] hover:border-[#247153]'
+                                : 'bg-[#F6F2EA] border-[#E5DFD3]'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] text-[#4D4D4F] font-medium">{param.title}</span>
-                              {param.isFlagged ? (
+                              {pending ? (
+                                <span className="text-[9px] font-mono text-[#8E8B82]">PENDING</span>
+                              ) : flagged ? (
                                 <span className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-[#8A5200] bg-amber-100 px-1 py-0.2 rounded border border-amber-300">
                                   <AlertTriangle className="w-2.5 h-2.5 text-[#8A5200]" />
-                                  <span>{param.id === 'ast' ? 'FLAG' : 'FAIL'}</span>
+                                  <span>FAIL</span>
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-[#247153]">
@@ -4550,94 +3914,14 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                                 </span>
                               )}
                             </div>
-
-                            {/* Score with hover trigger */}
                             <div
-                              onMouseEnter={() => setHoveredQaParam(param.id)}
-                              className={`text-xs font-mono font-bold mt-1 cursor-pointer ${
-                                param.isFlagged ? 'text-[#8A5200]' : 'text-[#247153]'
+                              className={`text-xs font-mono font-bold mt-1 ${
+                                pending ? 'text-[#8E8B82]' : flagged ? 'text-[#8A5200]' : 'text-[#247153]'
                               }`}
                             >
-                              <span>{param.score}</span>
+                              <span>{pending ? '—' : param.score}</span>
                             </div>
-
-                            {/* Interactive Hover Popover showing reason of flag or fail */}
-                            {hoveredQaParam === param.id && (
-                              <div
-                                className={`absolute bottom-full mb-2 ${
-                                  isLeftCol ? 'left-0' : 'right-0'
-                                } w-72 p-3 bg-white border-2 ${
-                                  param.isFlagged ? 'border-amber-400 shadow-amber-900/10' : 'border-emerald-400 shadow-emerald-900/10'
-                                } rounded-lg shadow-xl text-left z-50 animate-in fade-in zoom-in-95 duration-100 pointer-events-none`}
-                              >
-                                {/* Header */}
-                                <div className={`flex items-center gap-1.5 pb-1.5 mb-2 border-b ${
-                                  param.isFlagged ? 'border-amber-200 text-[#8A5200]' : 'border-emerald-200 text-[#247153]'
-                                }`}>
-                                  {param.isFlagged ? (
-                                    <AlertTriangle className="w-4 h-4 shrink-0 text-[#8A5200]" />
-                                  ) : (
-                                    <CheckCircle2 className="w-4 h-4 shrink-0 text-[#247153]" />
-                                  )}
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-xs truncate">
-                                      {param.isFlagged ? param.failHeader : `Qualified: ${param.title}`}
-                                    </div>
-                                    <div className="text-[9px] font-mono opacity-80">
-                                      {param.isFlagged
-                                        ? `Status: ${param.id === 'ast' ? 'FLAGGED (Schema Integrity)' : 'FAILED (Threshold Unmet)'}`
-                                        : 'Status: QUALIFIED (Baseline Passed)'}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Score vs Threshold metric row */}
-                                <div className="grid grid-cols-2 gap-1.5 p-1.5 rounded bg-[#F6F2EA]/60 border border-[#E5DFD3] text-[10px] mb-2 font-mono">
-                                  <div>
-                                    <span className="text-[#8E8B82] block text-[9px]">Actual Score</span>
-                                    <span className={`font-bold ${param.isFlagged ? 'text-[#8A5200]' : 'text-[#247153]'}`}>
-                                      {param.score}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-[#8E8B82] block text-[9px]">Threshold</span>
-                                    <span className="text-[#29251D] font-semibold truncate block">
-                                      {param.threshold}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Reason Block */}
-                                <div className="space-y-1.5 text-[11px] text-[#29251D]">
-                                  <div>
-                                    <div className={`text-[9px] uppercase font-mono font-bold tracking-wider ${
-                                      param.isFlagged ? 'text-[#8A5200]' : 'text-[#247153]'
-                                    }`}>
-                                      {param.isFlagged ? 'Reason for Failure / Flag:' : 'Verification Rationale:'}
-                                    </div>
-                                    <p className={`leading-snug mt-0.5 ${param.isFlagged ? 'text-[#704200] font-medium' : 'text-[#4D4D4F]'}`}>
-                                      {param.isFlagged ? param.failReason : param.passReason}
-                                    </p>
-                                  </div>
-
-                                  {param.isFlagged && param.remedy && (
-                                    <div className="pt-1.5 border-t border-[#E5DFD3] text-[10px] text-[#185F8D] font-medium flex items-start gap-1">
-                                      <span className="font-bold uppercase tracking-wider text-[9px] text-[#29251D] shrink-0">Remedy:</span>
-                                      <span>{param.remedy}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Pointer Arrow */}
-                                <div
-                                  className={`absolute top-full ${
-                                    isLeftCol ? 'left-8' : 'right-8'
-                                  } -mt-px w-2.5 h-2.5 bg-white border-b-2 border-r-2 ${
-                                    param.isFlagged ? 'border-amber-400' : 'border-emerald-400'
-                                  } rotate-45`}
-                                />
-                              </div>
-                            )}
+                            {!pending && <p className="mt-0.5 text-[9px] text-[#4D4D4F] leading-tight">{param.note}</p>}
                           </div>
                         );
                       })}
@@ -4653,24 +3937,19 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               <div className="w-full">
                 <button
                   type="button"
-                  onClick={handleExecuteEngine}
-                  disabled={isExecuting || activeDomain !== 'telecom' || !pipelineRun}
+                  onClick={() => void handleExecuteEngine()}
+                  disabled={isExecuting || !confirmed}
                   className="w-full h-[42px] px-3 bg-[#E31837] hover:bg-[#5F0229] disabled:opacity-50 text-white font-semibold text-xs rounded-md shadow-sm flex items-center justify-center gap-2 focus-techm transition-all cursor-pointer"
                 >
                   {isExecuting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-                      <span className="truncate">Generating ({executionProgress}%)...</span>
+                      <span className="truncate">Generating...</span>
                     </>
-                  ) : activeDomain !== 'telecom' ? (
-                    <>
-                      <PhoneCall className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Select Telecom</span>
-                    </>
-                  ) : !pipelineRun ? (
+                  ) : !confirmed ? (
                     <>
                       <Zap className="w-3.5 h-3.5 text-white shrink-0" />
-                      <span className="truncate">Run Pipeline First</span>
+                      <span className="truncate">Approve Schema First</span>
                     </>
                   ) : (
                     <>
@@ -4682,13 +3961,13 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               </div>
 
               {/* Completion Message when execution finishes without popup modal */}
-              {isExecutionComplete && !isExecuting && (
+              {isExecutionComplete && !isExecuting && generated && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-2 text-xs text-[#247153] shadow-2xs">
                   <CheckCircle2 className="w-4 h-4 text-[#247153] shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-xs text-[#247153]">Data Generation Complete</p>
                     <p className="text-[11px] text-[#247153]/85 truncate">
-                      Successfully generated {(recordCount || 100000).toLocaleString()} synthetic records.
+                      Successfully generated {generated.total_records.toLocaleString()} synthetic records.
                     </p>
                   </div>
                 </div>
@@ -4705,20 +3984,22 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 <div className="flex items-center gap-1.5 flex-1 justify-end">
                   <select
                     value={downloadFormat}
-                    onChange={e => setDownloadFormat(e.target.value as any)}
+                    onChange={e => setDownloadFormat(e.target.value as DownloadFormat)}
                     className="p-1 px-2 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono font-medium text-[#29251D] focus-techm cursor-pointer"
                     aria-label="Select download data format"
                   >
                     <option value="csv">CSV (.csv)</option>
                     <option value="json">JSON (.json)</option>
+                    {/* DISABLED: Parquet needs a server-side writer; the backend returns JSON records only
                     <option value="parquet">Parquet (.parquet)</option>
+                    */}
                     <option value="sql">SQL Dump (.sql)</option>
                     <option value="ndjson">NDJSON (.ndjson)</option>
                   </select>
                   <button
                     type="button"
                     onClick={() => handleDownloadSyntheticData()}
-                    disabled={activeDomain !== 'telecom'}
+                    disabled={!generated}
                     className="px-2.5 py-1 bg-[#29251D] hover:bg-[#4D4D4F] disabled:opacity-50 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     title={`Download synthetic dataset as ${downloadFormat.toUpperCase()}`}
                   >
@@ -4768,10 +4049,8 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
           <ContractsView
             onBack={() => setActiveNav('workbench')}
             onLoadContract={contract => {
-              setActiveDomain(contract.domain);
-              handleDomainChange(contract.domain);
               setActiveNav('workbench');
-              showToast(`Loaded ${contract.title} into Workbench.`);
+              showToast(`Opened the workbench for ${contract.title}. Pick its scenario in Pane 1.`);
             }}
             showToast={showToast}
           />
@@ -4819,13 +4098,14 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
         )}
       </div>
 
-      {/* =========================================================================
+      {/* DISABLED: static execution preview (fixed sample rows); it was never opened by the UI
+      {/ * =========================================================================
           EXECUTION RESULTS & DATA INSPECTOR DRAWER / MODAL
-          ========================================================================= */}
+          ========================================================================= * /}
       {executionDrawerOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 backdrop-blur-2xs">
           <div className="bg-white border border-[#E5DFD3] rounded-lg shadow-2xl w-full max-w-4xl h-[520px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Header */}
+            {/ * Header * /}
             <div className="h-12 border-b border-[#E5DFD3] px-4 flex items-center justify-between bg-[#F6F2EA]">
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-[#E31837]" />
@@ -4864,7 +4144,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               </div>
             </div>
 
-            {/* Execution Progress Bar */}
+            {/ * Execution Progress Bar * /}
             <div className="w-full bg-[#E5DFD3] h-1.5">
               <div
                 className="bg-[#E31837] h-full transition-all duration-300"
@@ -4872,7 +4152,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               />
             </div>
 
-            {/* Content Tabs in Drawer */}
+            {/ * Content Tabs in Drawer * /}
             <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs font-mono">
               <div>
                 <div className="flex items-center justify-between text-[#4D4D4F] mb-1.5">
@@ -4930,7 +4210,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 </div>
               </div>
 
-              {/* Unstructured Text Modality Sample */}
+              {/ * Unstructured Text Modality Sample * /}
               {modalities.text && (
                 <div>
                   <div className="text-[#4D4D4F] font-semibold text-[#29251D] mb-1">
@@ -4943,12 +4223,12 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 </div>
               )}
 
-              {/* Engine Log */}
+              {/ * Engine Log * /}
               <div>
                 <div className="text-[#4D4D4F] font-semibold text-[#29251D] mb-1">DuckDB Engine Query Stream Logs</div>
                 <pre className="p-2 bg-[#29251D] text-emerald-400 rounded text-[10px] leading-tight">
 {`SELECT msisdn, account_balance, data_depletion_pct, churn_risk_score
-FROM parquet_scan('s3://synthetic-telco-bucket/run_42901/*.parquet')
+FROM parquet_scan('s3://synthetic-telco-bucket/run_42901/ *.parquet')
 WHERE churn_risk_score > 0.85
 LIMIT 5;
 -- Returned 5 rows in 4.2ms. Differential Privacy Noise added: Laplace(b=0.02)`}
@@ -4956,7 +4236,7 @@ LIMIT 5;
               </div>
             </div>
 
-            {/* Footer */}
+            {/ * Footer * /}
             <div className="h-10 border-t border-[#E5DFD3] px-4 flex items-center justify-between bg-[#F6F2EA] text-xs">
               <span className="text-[#4D4D4F]">All constraints, AST rules, and privacy bounds satisfied.</span>
               <button
@@ -4969,6 +4249,7 @@ LIMIT 5;
           </div>
         </div>
       )}
+      */}
 
       {/* =========================================================================
           GLOBAL SEARCH MODAL (CMD+K / CTRL+K)
@@ -4989,7 +4270,7 @@ LIMIT 5;
                 autoFocus
                 value={globalSearchTerm}
                 onChange={e => setGlobalSearchTerm(e.target.value)}
-                placeholder="Search standards (TMF, 3GPP, FHIR, BIAN) or contract fields..."
+                placeholder="Search contract fields..."
                 className="w-full text-xs text-[#29251D] outline-none"
               />
               <kbd className="text-[10px] font-mono bg-[#F6F2EA] text-[#4D4D4F] border border-[#E5DFD3] px-1.5 py-0.5 rounded">
@@ -4998,6 +4279,7 @@ LIMIT 5;
             </div>
 
             <div className="p-2 max-h-64 overflow-y-auto text-xs divide-y divide-[#E5DFD3]">
+              {/* DISABLED: fixed list of standards (static data)
               <div className="py-1">
                 <div className="text-[10px] uppercase font-mono text-[#4D4D4F] px-2 py-1">Standards Reference</div>
                 {['TMF 622 Product Ordering', 'TMF 638 Service Inventory', '3GPP TS 32.298 5G CDR', 'BIAN v10 Payments', 'HL7 FHIR Patient']
@@ -5016,6 +4298,7 @@ LIMIT 5;
                     </button>
                   ))}
               </div>
+              */}
 
               <div className="py-1">
                 <div className="text-[10px] uppercase font-mono text-[#4D4D4F] px-2 py-1">Fields in Contract</div>
@@ -5041,9 +4324,10 @@ LIMIT 5;
         </div>
       )}
 
-      {/* =========================================================================
+      {/* DISABLED: editing a field's constraints is not backed by the API yet
+      {/ * =========================================================================
           EDIT FIELD MODAL
-          ========================================================================= */}
+          ========================================================================= * /}
       {editingField && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
           <div className="bg-white border border-[#E5DFD3] rounded-lg shadow-xl w-full max-w-md p-4 space-y-3">
@@ -5113,14 +4397,16 @@ LIMIT 5;
           </div>
         </div>
       )}
+      */}
 
-      {/* =========================================================================
+      {/* DISABLED: recommended-variables dialog: static variable list, not backed by the API yet
+      {/ * =========================================================================
           RECOMMEND SCENARIO VARIABLES MODAL (From Screenshot)
-          ========================================================================= */}
+          ========================================================================= * /}
       {showRecommendModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 p-6 max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
-            {/* Header */}
+            {/ * Header * /}
             <div className="flex items-start justify-between pb-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -5145,10 +4431,10 @@ LIMIT 5;
               </button>
             </div>
 
-            {/* Dual Panel Body with Middle Action Arrows */}
+            {/ * Dual Panel Body with Middle Action Arrows * /}
             <div className="flex-1 overflow-hidden grid grid-cols-[1fr_auto_1fr] gap-3 items-center py-2 min-h-0">
               
-              {/* Left Panel: Available Variables */}
+              {/ * Left Panel: Available Variables * /}
               <div className="h-full flex flex-col border border-slate-200 rounded-2xl p-3.5 bg-white overflow-hidden shadow-2xs">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -5160,7 +4446,7 @@ LIMIT 5;
                   </span>
                 </div>
 
-                {/* Search Available */}
+                {/ * Search Available * /}
                 <div className="relative mb-2.5">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -5172,7 +4458,7 @@ LIMIT 5;
                   />
                 </div>
 
-                {/* Scrollable list of Available Variable cards */}
+                {/ * Scrollable list of Available Variable cards * /}
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                   {filteredAvailable.length === 0 ? (
                     <div className="h-32 flex items-center justify-center text-slate-400 text-xs">
@@ -5226,9 +4512,9 @@ LIMIT 5;
                 </div>
               </div>
 
-              {/* Middle Transfer Buttons */}
+              {/ * Middle Transfer Buttons * /}
               <div className="flex flex-col gap-2 items-center px-1">
-                {/* >> Move all to right */}
+                {/ * >> Move all to right * /}
                 <button
                   type="button"
                   onClick={handleMoveAllToRecommended}
@@ -5239,7 +4525,7 @@ LIMIT 5;
                   <ChevronsRight className="w-4 h-4" />
                 </button>
 
-                {/* → Move selected to right */}
+                {/ * → Move selected to right * /}
                 <button
                   type="button"
                   onClick={handleMoveSelectedToRecommended}
@@ -5250,7 +4536,7 @@ LIMIT 5;
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-                {/* ← Move selected to left */}
+                {/ * ← Move selected to left * /}
                 <button
                   type="button"
                   onClick={handleMoveSelectedToAvailable}
@@ -5261,7 +4547,7 @@ LIMIT 5;
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
-                {/* << Move all to left */}
+                {/ * << Move all to left * /}
                 <button
                   type="button"
                   onClick={handleMoveAllToAvailable}
@@ -5273,7 +4559,7 @@ LIMIT 5;
                 </button>
               </div>
 
-              {/* Right Panel: Recommended Variables */}
+              {/ * Right Panel: Recommended Variables * /}
               <div className="h-full flex flex-col border border-slate-200 rounded-2xl p-3.5 bg-white overflow-hidden shadow-2xs">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -5285,7 +4571,7 @@ LIMIT 5;
                   </span>
                 </div>
 
-                {/* Search Recommended */}
+                {/ * Search Recommended * /}
                 <div className="relative mb-2.5">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -5297,7 +4583,7 @@ LIMIT 5;
                   />
                 </div>
 
-                {/* Scrollable list of Recommended Variable cards */}
+                {/ * Scrollable list of Recommended Variable cards * /}
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                   {recommendedVars.length === 0 ? (
                     <div className="h-full min-h-[220px] flex items-center justify-center text-slate-400 text-xs font-medium text-center p-6">
@@ -5357,7 +4643,7 @@ LIMIT 5;
 
             </div>
 
-            {/* Modal Footer */}
+            {/ * Modal Footer * /}
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs mt-1">
               <span className="text-slate-600">
                 <strong className="text-slate-900 font-bold">{recommendedVars.length}</strong> recommended out of{' '}
@@ -5376,16 +4662,7 @@ LIMIT 5;
           </div>
         </div>
       )}
-
-      {/* =========================================================================
-          NOTIFICATION TOAST
-          ========================================================================= */}
-      {showNotificationToast && (
-        <div className="fixed bottom-4 right-4 bg-[#29251D] text-white px-3.5 py-2 rounded-md shadow-lg text-xs flex items-center gap-2 z-50 animate-in slide-in-from-bottom-2 duration-150">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      */}
     </div>
   );
 }
