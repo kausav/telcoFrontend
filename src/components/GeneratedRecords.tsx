@@ -110,7 +110,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
 
         {isTransactional ? (
           /* Transactional: one expandable block per user, with that user's history inside */
-          <div className="p-2.5 space-y-2">
+          <div className="p-2.5 space-y-2 overflow-y-auto max-h-[65vh]">
             {filteredRecords.length === 0 && (
               <div className="text-xs text-[#4D4D4F] italic p-3 rounded-md border border-[#E5DFD3] bg-[#F6F2EA]/40">
                 No user records match the current search.
@@ -160,9 +160,9 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                           <p className="text-[11px] font-semibold text-[#29251D] mb-1.5">User Details</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                             {entityFields.map(([key, value]) => (
-                              <div key={`${userKey}_${key}`} className="rounded border border-[#E5DFD3] bg-white px-2 py-1.5">
-                                <p className="text-[10px] text-[#4D4D4F]">{key}</p>
-                                <p className="text-[11px] font-mono text-[#29251D] mt-0.5 break-all">{fmtCell(value)}</p>
+                              <div key={`${userKey}_${key}`} className="rounded border border-[#E5DFD3] bg-white px-2 py-1.5 min-w-0">
+                                <p className="text-[10px] text-[#4D4D4F] truncate" title={key}>{key}</p>
+                                <p className="text-[11px] font-mono text-[#29251D] mt-0.5 truncate" title={fmtCell(value)}>{fmtCell(value)}</p>
                               </div>
                             ))}
                           </div>
@@ -178,9 +178,9 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                         {history.length === 0 ? (
                           <p className="text-[11px] text-[#4D4D4F] italic p-2.5">No history records available for this user.</p>
                         ) : (
-                          <div className="overflow-x-auto">
+                          <div className="overflow-auto max-h-[45vh]">
                             <table className="w-full text-left text-[11px]">
-                              <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3]">
+                              <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] sticky top-0 z-20">
                                 <tr>
                                   <th className="px-2 py-1.5 sticky left-0 bg-[#F6F2EA] z-10">#</th>
                                   {historyFields.map(field => (
@@ -201,7 +201,8 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                                       return (
                                         <td
                                           key={`${userKey}__record_${recIdx}_${field}`}
-                                          className={`px-2 py-1.5 whitespace-nowrap ${isNull ? 'text-[#8E8B82] italic' : ''}`}
+                                          title={fmtCell(value)}
+                                          className={`px-2 py-1.5 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#8E8B82] italic' : ''}`}
                                         >
                                           {fmtCell(value)}
                                         </td>
@@ -232,9 +233,9 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
           </div>
         ) : (
           /* Aggregational: one table, one row per record */
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[60vh]">
             <table className="w-full text-left text-[11px]">
-              <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3]">
+              <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] sticky top-0 z-20">
                 <tr>
                   <th className="p-2 sticky left-0 bg-[#F6F2EA] z-10">#</th>
                   {fields.map(f => (
@@ -260,7 +261,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                       const val = row?.[f];
                       const isNull = val === null || val === undefined;
                       return (
-                        <td key={f} className={`p-2 whitespace-nowrap ${isNull ? 'text-[#8E8B82] italic' : ''}`}>
+                        <td key={f} title={fmtCell(val)} className={`p-2 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#8E8B82] italic' : ''}`}>
                           {fmtCell(val)}
                         </td>
                       );

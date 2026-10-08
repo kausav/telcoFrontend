@@ -1416,8 +1416,8 @@ type WorkbenchTab = 'table' | 'records' | 'graph' | 'ast' | 'stageDetails';
 // =========================================================================
 const MAX_USERS = 5000;
 const MAX_RECORDS_PER_USER = 10;
-const DEFAULT_RECORD_COUNT = 1000;
-const RECORD_PRESETS = [500, 1000, 10000, 50000];
+const DEFAULT_RECORD_COUNT = 100;
+const RECORD_PRESETS = [10, 100, 1000, 5000];
 const MAX_SEED = 2_147_483_647;
 
 /** Country preselected in the Country dropdown (and used if /catalog/countries cannot be loaded). Set VITE_DEFAULT_COUNTRY to change it. */
@@ -1425,14 +1425,18 @@ const DEFAULT_COUNTRY: string = (import.meta.env.VITE_DEFAULT_COUNTRY as string 
 
 type DownloadFormat = ExportFormat;
 
-const maxRecordsFor = (typeOfData: string | undefined): number =>
-  typeOfData === 'aggregational' ? MAX_USERS : MAX_USERS * MAX_RECORDS_PER_USER;
+const DATA_TYPE_OPTIONS: { value: 'transactional' | 'aggregational'; label: string; hint: string }[] = [
+  { value: 'transactional', label: 'Transactional', hint: 'A history of records for each user' },
+  { value: 'aggregational', label: 'Aggregational', hint: 'One summary row per record' }
+];
 
-/** How many users and records per user produce about `total` records. */
-function planGeneration(total: number, typeOfData: string | undefined): { count: number; recordsPerUser: number } {
-  if (typeOfData === 'aggregational') return { count: total, recordsPerUser: 1 };
-  const recordsPerUser = Math.min(MAX_RECORDS_PER_USER, total);
-  return { count: Math.ceil(total / recordsPerUser), recordsPerUser };
+/** The most users (transactional) or rows (aggregational) one run can generate. */
+const MAX_VOLUME = MAX_USERS;
+
+/** Users (transactional) or rows (aggregational) in the run, and how many history records each user gets. */
+function planGeneration(volume: number, typeOfData: string | undefined, recordsPerUser: number): { count: number; recordsPerUser: number } {
+  if (typeOfData === 'aggregational') return { count: volume, recordsPerUser: 1 };
+  return { count: volume, recordsPerUser };
 }
 
 const pct = (score: number | undefined): string => (typeof score === 'number' ? `${(score * 100).toFixed(1)}%` : 'n/a');
@@ -1590,13 +1594,16 @@ export default function App() {
 
   // Multi-modal parameters state
   const [targetEngine, setTargetEngine] = useState<'duckdb' | 'polars' | 'spark' | null>(null);
+  // Only structured data is generated for now, so it is always selected (the other modalities are not offered).
   const [modalities, setModalities] = useState({
-    structured: false,
+    structured: true,
     text: false,
     vision: false,
     telemetry: false
   });
   const [recordCount, setRecordCount] = useState<number | ''>('');
+  const [recordsPerUser, setRecordsPerUser] = useState<number | ''>(MAX_RECORDS_PER_USER);
+  const [typeOfData, setTypeOfData] = useState<'transactional' | 'aggregational' | ''>('');
   const [randomSeed, setRandomSeed] = useState<number | ''>('');
   const [modalitiesDropdownOpen, setModalitiesDropdownOpen] = useState(false);
   const [seedSectionExpanded, setSeedSectionExpanded] = useState(false);
@@ -1623,6 +1630,7 @@ export default function App() {
   */
 
   const recordCountInputId = useId();
+  const recordsPerUserInputId = useId();
   const randomSeedInputId = useId();
 
   // Toast feedback helper (react-toastify)
@@ -1657,6 +1665,7 @@ export default function App() {
     setOpenJourneyIndex(-1);
     setSelectedScenario('');
     setScenarioDetail(null);
+    setTypeOfData('');
     setPromptText('');
     setShowPromptInfo(false);
   };
@@ -1705,6 +1714,7 @@ export default function App() {
       const detail = await getScenarioDetail(scenario.scenarioId);
       if (turn !== scenarioTurn.current) return;
       setScenarioDetail(detail);
+      setTypeOfData(detail.proposeRequest.typeOfData);
       setPromptText(detail.proposeRequest.businessScenario ?? '');
       showToast(`Selected scenario: ${scenario.label} — specification loaded`, 'success');
     } catch (error) {
@@ -1765,10 +1775,6 @@ export default function App() {
       showToast(selectedScenario ? 'The scenario is still loading' : 'Please select a customer journey scenario first', 'warning');
       return;
     }
-    if (!Object.values(modalities).some(Boolean)) {
-      showToast('Please select at least one modality type', 'warning');
-      return;
-    }
     const defaults = scenarioDetail.proposeRequest;
     const businessScenario = (promptText.trim() || defaults.businessScenario || '').trim();
     if (!businessScenario) {
@@ -1797,7 +1803,7 @@ export default function App() {
         industryType: defaults.industryType,
         domain: defaults.domain,
         businessScenario,
-        typeOfData: defaults.typeOfData,
+        typeOfData: typeOfData || defaults.typeOfData,
         country: countryCode,
         useCase: defaults.useCase,
         ...(defaults.entityKey ? { entityKey: defaults.entityKey } : {})
@@ -1864,17 +1870,22 @@ export default function App() {
       return;
     }
     if (isExecuting) return;
-    const maxRecords = maxRecordsFor(confirmed.typeOfData);
-    const total = typeof recordCount === 'number' && recordCount > 0 ? Math.floor(recordCount) : DEFAULT_RECORD_COUNT;
-    if (total > maxRecords) {
-      showToast(`Record volume can be at most ${maxRecords.toLocaleString()} for this scenario`, 'error');
+    const isTransactional = confirmed.typeOfData !== 'aggregational';
+    const volume = typeof recordCount === 'number' && recordCount > 0 ? Math.floor(recordCount) : DEFAULT_RECORD_COUNT;
+    if (volume > MAX_VOLUME) {
+      showToast(`A run can generate at most ${MAX_VOLUME.toLocaleString()} ${isTransactional ? 'users' : 'rows'}`, 'error');
+      return;
+    }
+    const perUser = typeof recordsPerUser === 'number' && recordsPerUser > 0 ? Math.floor(recordsPerUser) : MAX_RECORDS_PER_USER;
+    if (isTransactional && perUser > MAX_RECORDS_PER_USER) {
+      showToast(`Records per user can be at most ${MAX_RECORDS_PER_USER}`, 'error');
       return;
     }
     if (randomSeed !== '' && !(Number.isInteger(randomSeed) && randomSeed >= 0 && randomSeed <= MAX_SEED)) {
       showToast(`The seed must be a whole number from 0 to ${MAX_SEED.toLocaleString()}`, 'error');
       return;
     }
-    const plan = planGeneration(total, confirmed.typeOfData);
+    const plan = planGeneration(volume, confirmed.typeOfData, perUser);
     const turn = pipelineTurn.current;
     setIsExecuting(true);
     setIsExecutionComplete(false);
@@ -2618,7 +2629,47 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Multi-Modal Modalities Section: Displayed once user has selected Telecommunication, Use Case, and Customer Journey */}
+              {/* Type of data: the scenario's journey says which of these it supports (GET /catalog/scenarios/{id}) */}
+              {activeDomain && useCaseId && selectedScenario && (
+                <div className="pt-2.5 border-t border-[#E5DFD3] animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#E31837]" />
+                    <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                      Type of Data <span className="text-[#E31837]">*</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {DATA_TYPE_OPTIONS.map(option => {
+                      const supported = !scenarioDetail || scenarioDetail.journey.dataTypes.includes(option.value);
+                      const active = typeOfData === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          disabled={!supported || isScenarioLoading}
+                          onClick={() => {
+                            if (active) return;
+                            resetPipeline();
+                            setTypeOfData(option.value);
+                          }}
+                          title={supported ? option.hint : `${option.label} data is not available for this journey`}
+                          className={`text-left p-2 rounded-md border text-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                            active
+                              ? 'border-[#E31837] bg-[#FDF9F0] ring-1 ring-[#E31837] shadow-2xs'
+                              : 'border-[#E5DFD3] bg-white hover:border-[#29251D]'
+                          }`}
+                        >
+                          <span className="block font-semibold text-[#29251D]">{option.label}</span>
+                          <span className="block text-[10px] text-[#4D4D4F] leading-snug mt-0.5">{option.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* DISABLED: the multi-modality picker: only structured data is generated for now, so it is always selected
+              {/ * Multi-Modal Modalities Section: Displayed once user has selected Telecommunication, Use Case, and Customer Journey * /}
               {activeDomain && useCaseId && selectedScenario && (
                 <div className="relative pt-2.5 border-t border-[#E5DFD3] animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="flex items-center justify-between mb-1.5">
@@ -2642,7 +2693,7 @@ export default function App() {
                     )}
                   </div>
 
-                {/* Dropdown Multi-Select Trigger Button */}
+                {/ * Dropdown Multi-Select Trigger Button * /}
                 <button
                   type="button"
                   onClick={() => setModalitiesDropdownOpen(prev => !prev)}
@@ -2692,7 +2743,7 @@ export default function App() {
                   <ChevronDown className={`w-3.5 h-3.5 text-[#4D4D4F] transition-transform duration-200 shrink-0 ${modalitiesDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown Multi-Select Menu */}
+                {/ * Dropdown Multi-Select Menu * /}
                 {modalitiesDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-[#E5DFD3] rounded-md shadow-lg p-2 space-y-1.5 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between pb-1.5 border-b border-[#E5DFD3] text-[10px]">
@@ -2725,7 +2776,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-1 max-h-56 overflow-y-auto pt-0.5">
-                      {/* 1. Unstructured Data */}
+                      {/ * 1. Unstructured Data * /}
                       <label
                         className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
                           modalities.text
@@ -2748,7 +2799,7 @@ export default function App() {
                         />
                       </label>
 
-                      {/* 2. Structured Data */}
+                      {/ * 2. Structured Data * /}
                       <label
                         className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
                           modalities.structured
@@ -2771,7 +2822,7 @@ export default function App() {
                         />
                       </label>
 
-                      {/* 3. Image */}
+                      {/ * 3. Image * /}
                       <label
                         className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
                           modalities.vision
@@ -2794,7 +2845,7 @@ export default function App() {
                         />
                       </label>
 
-                      {/* 4. Video */}
+                      {/ * 4. Video * /}
                       <label
                         className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
                           modalities.telemetry
@@ -2834,16 +2885,18 @@ export default function App() {
                 )}
               </div>
             )}
+              */}
 
               {/* Pipeline Run / Proceed Action Button */}
               {activeDomain && (
                 <div className="pt-2.5 border-t border-[#E5DFD3] space-y-2">
                   {(() => {
-                    const hasSelectedModality = Object.values(modalities).some(Boolean);
+                    const hasSelectedModality = true; // structured data is always selected
                     const canProceed = Boolean(
                       activeDomain &&
                       useCaseId &&
                       scenarioDetail &&
+                      typeOfData &&
                       !isScenarioLoading &&
                       hasSelectedModality &&
                       !isPipelineRunning
@@ -2870,7 +2923,7 @@ export default function App() {
                             !useCaseId
                               ? 'Select a use case from the dropdown above'
                               : !selectedScenario
-                                ? 'Select a customer journey scenario above to load modalities'
+                                ? 'Select a customer journey scenario above'
                                 : isScenarioLoading
                                   ? 'Loading the selected scenario...'
                                   : !hasSelectedModality
@@ -3139,8 +3192,8 @@ export default function App() {
                   )}
                   */}
                   {/* High-Density Data Contract Table */}
-                  <div className="border border-[#E5DFD3] rounded-md overflow-hidden bg-white">
-                    <table className="w-full text-left text-xs border-collapse">
+                  <div className="border border-[#E5DFD3] rounded-md overflow-auto max-h-[60vh] bg-white">
+                    <table className="w-full min-w-[820px] text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F] font-mono text-[11px]">
                           <th className="py-2 px-3 font-semibold">Field Name</th>
@@ -3190,18 +3243,21 @@ export default function App() {
                                   ) : (
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#247153] shrink-0" />
                                   )}
-                                  <span>{field.name}</span>
+                                  <span className="block truncate max-w-[240px]" title={field.name}>{field.name}</span>
                                 </div>
                               </td>
 
                               <td className="py-2 px-3 text-[#4D4D4F]">
-                                <span className="px-1.5 py-0.5 rounded bg-[#F6F2EA] border border-[#E5DFD3] text-[11px]">
+                                <span
+                                  className="inline-block max-w-[150px] truncate align-middle whitespace-nowrap px-1.5 py-0.5 rounded bg-[#F6F2EA] border border-[#E5DFD3] text-[11px]"
+                                  title={field.standardRef}
+                                >
                                   {field.standardRef}
                                 </span>
                               </td>
 
                               <td className="py-2 px-3 font-mono text-[#29251D]">
-                                <span className="text-[#185F8D] font-medium">{field.physicalType}</span>
+                                <span className="block truncate max-w-[130px] text-[#185F8D] font-medium" title={field.physicalType}>{field.physicalType}</span>
                               </td>
 
                               <td className="py-2 px-3 text-[#4D4D4F] font-mono text-[11px]">
@@ -3212,7 +3268,8 @@ export default function App() {
 
                               <td className="py-2 px-3">
                                 <span
-                                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${
+                                  title={field.sensitivity}
+                                  className={`inline-block max-w-[120px] truncate align-middle whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded font-medium border ${
                                     field.sensitivity.includes('PII')
                                       ? 'bg-red-50 text-[#9C1936] border-red-200'
                                       : field.sensitivity.includes('Financial')
@@ -3554,54 +3611,81 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                       <Video className="w-2.5 h-2.5" /> Video
                     </span>
                   )}
-                  {!Object.values(modalities).some(Boolean) && (
-                    <span className="text-[10px] text-[#8E8B82] italic">Structured Data</span>
-                  )}
                 </div>
               </div>
 
               {/* Generation Parameters */}
               <div className="space-y-2.5 pt-1">
-                {/* Record Count */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label htmlFor={recordCountInputId} className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
-                      Record Volume
-                    </label>
-                    <div className="flex gap-1">
-                      {RECORD_PRESETS.map(val => (
-                        <button
-                          key={val}
-                          onClick={() => setRecordCount(val)}
-                          className={`text-[10px] px-1.5 py-0.5 rounded border cursor-pointer ${
-                            recordCount === val
-                              ? 'bg-[#29251D] text-white border-[#29251D]'
-                              : 'bg-white border-[#E5DFD3] text-[#4D4D4F]'
-                          }`}
-                        >
-                          {val >= 1000 ? `${val / 1000}K` : val}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <input
-                    id={recordCountInputId}
-                    type="number"
-                    value={recordCount}
-                    placeholder={`Enter record volume (default ${DEFAULT_RECORD_COUNT.toLocaleString()})`}
-                    min={1}
-                    max={maxRecordsFor((confirmed ?? draft)?.typeOfData)}
-                    onChange={e => setRecordCount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
-                  />
-                  <p className="mt-1 text-[10px] text-[#8E8B82]">
-                    Up to {maxRecordsFor((confirmed ?? draft)?.typeOfData).toLocaleString()} records per run.
-                  </p>
-                </div>
+                {/* Volume: users (transactional) or rows (aggregational) */}
+                {(() => {
+                  const isTransactional = (confirmed ?? draft)?.typeOfData !== 'aggregational';
+                  const volume = typeof recordCount === 'number' && recordCount > 0 ? recordCount : DEFAULT_RECORD_COUNT;
+                  const perUser = typeof recordsPerUser === 'number' && recordsPerUser > 0 ? recordsPerUser : MAX_RECORDS_PER_USER;
+                  return (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label htmlFor={recordCountInputId} className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                            {isTransactional ? 'Number of Users' : 'Record Volume'}
+                          </label>
+                          <div className="flex gap-1">
+                            {RECORD_PRESETS.map(val => (
+                              <button
+                                key={val}
+                                onClick={() => setRecordCount(val)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border cursor-pointer ${
+                                  recordCount === val
+                                    ? 'bg-[#29251D] text-white border-[#29251D]'
+                                    : 'bg-white border-[#E5DFD3] text-[#4D4D4F]'
+                                }`}
+                              >
+                                {val >= 1000 ? `${val / 1000}K` : val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          id={recordCountInputId}
+                          type="number"
+                          value={recordCount}
+                          placeholder={`Enter ${isTransactional ? 'number of users' : 'record volume'} (default ${DEFAULT_RECORD_COUNT.toLocaleString()})`}
+                          min={1}
+                          max={MAX_VOLUME}
+                          onChange={e => setRecordCount(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
+                        />
+                        <p className="mt-1 text-[10px] text-[#8E8B82]">
+                          Up to {MAX_VOLUME.toLocaleString()} {isTransactional ? 'users' : 'rows'} per run.
+                        </p>
+                      </div>
 
-                {/* Reproducibility Seed - Hidden by default using downward arrow option */}
+                      {isTransactional && (
+                        <div>
+                          <label htmlFor={recordsPerUserInputId} className="block text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider mb-1">
+                            Records per User
+                          </label>
+                          <input
+                            id={recordsPerUserInputId}
+                            type="number"
+                            value={recordsPerUser}
+                            min={1}
+                            max={MAX_RECORDS_PER_USER}
+                            onChange={e => setRecordsPerUser(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
+                          />
+                          <p className="mt-1 text-[10px] text-[#8E8B82]">
+                            Up to {MAX_RECORDS_PER_USER} history records per user. This run: {(volume * perUser).toLocaleString()} records.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* DISABLED: Reproducibility Seed: the seed is not offered for now (generation runs without one)
+                {/ * Reproducibility Seed - Hidden by default using downward arrow option * /}
                 <div className="rounded-md border border-[#E5DFD3] bg-[#F6F2EA]/40 overflow-hidden transition-all">
-                  {/* Collapsible Trigger Row with Downward Arrow Option */}
+                  {/ * Collapsible Trigger Row with Downward Arrow Option * /}
                   <div
                     onClick={() => setSeedSectionExpanded(prev => !prev)}
                     className="flex items-center justify-between p-2 bg-[#F6F2EA]/70 hover:bg-[#F6F2EA] cursor-pointer transition-colors select-none"
@@ -3647,7 +3731,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     </button>
                   </div>
 
-                  {/* Seed Configuration Body - Kept hidden until expanded via downward arrow */}
+                  {/ * Seed Configuration Body - Kept hidden until expanded via downward arrow * /}
                   {seedSectionExpanded && (
                     <div className="p-2.5 pt-2 border-t border-[#E5DFD3] bg-white space-y-2 animate-in fade-in duration-150 relative">
                       <div className="flex items-center justify-between mb-0.5">
@@ -3655,7 +3739,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           Random Seed Value
                         </label>
                         <div className="flex items-center gap-1.5">
-                          {/* DISABLED: seed suggestions were fixed sample text
+                          {/ * DISABLED: seed suggestions were fixed sample text
                           <button
                             type="button"
                             onClick={() => setShowSeedSuggestions(prev => !prev)}
@@ -3672,7 +3756,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                               {typeof recordCount === 'number' && recordCount > 0 ? (recordCount >= 1000 ? `${recordCount / 1000}K` : recordCount) : '100K'}
                             </span>
                           </button>
-                          */}
+                          * /}
                           <button
                             type="button"
                             onClick={() => {
@@ -3697,7 +3781,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
                       />
 
-                      {/* DISABLED: volume-calibrated seed suggestions were fixed sample text; any seed reproduces the same dataset
+                      {/ * DISABLED: volume-calibrated seed suggestions were fixed sample text; any seed reproduces the same dataset
                       {/ * Volume-calibrated inline seed suggestion pill * /}
                       {(() => {
                         const currentVol = typeof recordCount === 'number' && recordCount > 0 ? recordCount : 100000;
@@ -3826,10 +3910,11 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           </div>
                         </div>
                       )}
-                      */}
+                      * /}
                     </div>
                   )}
                 </div>
+                */}
               </div>
 
               {/* Quality verification: the validation report of the generated dataset (POST /scenario/generate) */}
