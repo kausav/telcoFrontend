@@ -60,6 +60,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
         </div>
       )}
 
+      {/* The scroll areas below are sized to the visible pane, so their scroll bars stay on screen instead of sitting below the fold */}
       <div className="bg-white rounded-md border border-[#E5DFD3] shadow-2xs overflow-hidden">
         {/* Toolbar: search (downloads are in the right-hand panel) */}
         <div className="p-2.5 border-b border-[#E5DFD3] bg-[#F6F2EA] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -82,7 +83,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
 
         {isTransactional ? (
           /* Transactional: one expandable block per user, with that user's history inside */
-          <div className="p-2.5 space-y-2 overflow-y-auto max-h-[65vh]">
+          <div className="p-2.5 space-y-2 overflow-y-auto max-h-[max(240px,calc(100vh-360px))]">
             {filteredRecords.length === 0 && (
               <div className="text-xs text-[#4D4D4F] italic p-3 rounded-md border border-[#E5DFD3] bg-[#F6F2EA]/40">
                 No user records match the current search.
@@ -150,7 +151,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                         {history.length === 0 ? (
                           <p className="text-[11px] text-[#4D4D4F] italic p-2.5">No history records available for this user.</p>
                         ) : (
-                          <div className="overflow-auto max-h-[45vh]">
+                          <div className="overflow-auto max-h-[max(200px,calc(100vh-520px))]">
                             <table className="w-full text-left text-[11px]">
                               <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] sticky top-0 z-20">
                                 <tr>
@@ -205,7 +206,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
           </div>
         ) : (
           /* Aggregational: one table, one row per record */
-          <div className="overflow-auto max-h-[60vh]">
+          <div className="overflow-auto max-h-[max(240px,calc(100vh-360px))]">
             <table className="w-full text-left text-[11px]">
               <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] sticky top-0 z-20">
                 <tr>
