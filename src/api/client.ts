@@ -29,6 +29,18 @@ export const api = axios.create({
   headers: { Accept: 'application/json' },
 });
 
+/**
+ * Static API token, sent on every request until a real login flow exists. Set VITE_API_TOKEN in .env to the value of the
+ * backend's API_STATIC_TOKENS. (A token in a front-end bundle is visible to anyone who can load the page: fine for an internal
+ * stop-gap, replace it with a login flow before the UI is exposed.)
+ */
+const API_TOKEN: string = ((import.meta.env.VITE_API_TOKEN as string | undefined) || '').trim();
+
+api.interceptors.request.use(config => {
+  if (API_TOKEN) config.headers.set('Authorization', `Bearer ${API_TOKEN}`);
+  return config;
+});
+
 /** The structured error the backend returns ({ success: false, error: { code, message, details, request_id } }), if any. */
 export function getApiErrorBody(error: unknown): ApiErrorBody['error'] | null {
   if (!axios.isAxiosError(error)) return null;

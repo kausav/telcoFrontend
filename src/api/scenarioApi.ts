@@ -16,14 +16,16 @@ export const proposeScenario = async (body: ScenarioProposeRequest): Promise<Sce
 export const confirmScenario = async (body: ScenarioConfirmRequest): Promise<ScenarioConfirmResponse> =>
   (await api.post<ScenarioConfirmResponse>('/scenario/confirm', body, { timeout: LONG_TIMEOUT_MS })).data;
 
-const MAX_SPEC_RETRIES = 6;
+// A scenario's behaviour design takes minutes (it can run up to ~12 min with its repair rounds); the backend answers each wait in
+// well under a minute, so allow for ~20 min of 30 s retries.
+const MAX_SPEC_RETRIES = 40;
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 /**
  * Step 3: generate the dataset.
  *
- * While a scenario's behaviour design is still running in the background the backend answers 503 with
- * `details.retryAfterSeconds`; this waits that long and asks again (up to MAX_SPEC_RETRIES times) and reports each
+ * While a scenario's behaviour design (or its repair) is still running in the background the backend answers 503 with
+ * `details.retryAfterSeconds` and `details.phase` (designing | refining); this waits that long and asks again (up to MAX_SPEC_RETRIES times) and reports each
  * wait through `onWait`, so the caller can tell the user.
  */
 export async function generateScenario(
