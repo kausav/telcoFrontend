@@ -13,12 +13,15 @@ export interface DataField {
   distribution?: string;
   /** Required variables, and the entity key, cannot be removed from the schema */
   required: boolean;
+  /** Place in the delivered data (smaller comes first); editable before the schema is approved */
+  sequence?: number;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
   MONGODB_JSON: 'Industry source',
   DB_RECOMMENDED: 'Recommended variable',
   USER_SELECTED: 'User selected',
+  USER_ADDED: 'Added by you',
 };
 
 const PII = /(^|_)(name|email|phone|msisdn|imsi|address|dob|birth|ssn|pan|aadhaar|passport|ip_address|device_id|national_id)(_|$)/i;
@@ -91,8 +94,16 @@ export function toDataField(variable: SchemaVariable, sources: Record<string, st
     qaStatus: 'PASS',
     distribution: describeDistribution(variable),
     required: Boolean(variable.required) || (entityKey !== null && name === entityKey),
+    sequence: typeof variable.sequence === 'number' && Number.isFinite(variable.sequence) ? variable.sequence : undefined,
   };
 }
 
+/** The fields in the order of their sequence (a field without one keeps its place after the numbered ones). */
+export const bySequence = (fields: DataField[]): DataField[] =>
+  fields
+    .map((field, index) => ({ field, index }))
+    .sort((a, b) => (a.field.sequence ?? Number.MAX_SAFE_INTEGER) - (b.field.sequence ?? Number.MAX_SAFE_INTEGER) || a.index - b.index)
+    .map(({ field }) => field);
+
 export const toDataFields = (variables: SchemaVariable[], sources: Record<string, string>, entityKey: string | null): DataField[] =>
-  variables.map(variable => toDataField(variable, sources, entityKey));
+  bySequence(variables.map(variable => toDataField(variable, sources, entityKey)));

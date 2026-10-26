@@ -43,6 +43,8 @@ export interface CatalogScenario {
   label: string;
   order: number;
   businessScenario: string | null;
+  /** One or two plain sentences that explain what the scenario is about (shown in the UI). May be missing on older data. */
+  description?: string | null;
 }
 
 export interface CatalogScenarioList {
@@ -93,6 +95,7 @@ export interface CatalogImportScenario {
   scenarioId: string;
   scenarioType: string;
   businessScenario?: string | null;
+  description?: string | null;
   active?: boolean;
 }
 export interface CatalogImportJourney {
@@ -169,6 +172,8 @@ export interface SchemaVariable {
   scope?: string | null;
   useCase?: string | null;
   source?: string | null;
+  /** Where the column sits in the delivered data (smaller comes first); the backend fills it in from the data's story order. */
+  sequence?: number | null;
   [key: string]: unknown;
 }
 

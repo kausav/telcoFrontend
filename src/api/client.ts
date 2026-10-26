@@ -3,7 +3,7 @@ import type { ApiErrorBody } from './types';
 
 /** Backend base URL; set VITE_API_BASE_URL in .env (see .env.example). */
 export const API_BASE_URL: string =
-  ((import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8000').replace(/\/+$/, '');
+  ((import.meta.env.VITE_API_HOST as string | undefined) || 'http://localhost:8000').replace(/\/+$/, '');
 
 /** Reads are quick; the LLM-backed calls (propose, confirm, generate) pass their own, longer, timeout. */
 export const DEFAULT_TIMEOUT_MS = 30_000;

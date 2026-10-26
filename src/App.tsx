@@ -69,14 +69,16 @@ import type {
   CatalogScenarioDetail,
   ScenarioConfirmResponse,
   ScenarioDraftResponse,
-  ScenarioGenerateResponse
+  ScenarioGenerateResponse,
+  SchemaVariable
 } from './api/types';
 import { proposeScenario, confirmScenario, generateScenario } from './api/scenarioApi';
+import VariableModal, { type VariableAccess, type VariableSave } from './components/VariableModal';
 import { getCountries, getScenarioDetail } from './api/catalogApi';
 import { useCatalog } from './hooks/useCatalog';
 import { notify, notifyApiError, type ToastKind } from './lib/notify';
 import { getDomainVisual } from './lib/domainVisual';
-import { toDataFields, type DataField } from './lib/schema';
+import { bySequence, toDataField, toDataFields, type DataField } from './lib/schema';
 import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from './lib/exportData';
 
 // =========================================================================
@@ -1425,6 +1427,18 @@ const DEFAULT_COUNTRY: string = (import.meta.env.VITE_DEFAULT_COUNTRY as string 
 
 type DownloadFormat = ExportFormat;
 
+/** Domains shown for completeness only: they have no catalog data yet, so they are not loaded from the API and cannot be selected. */
+const COMING_SOON_DOMAINS = ['Healthcare', 'T&S', 'Manufacturing'];
+
+/** The plain-language line that explains a scenario: its description, or the first sentence of its business brief when it has none. */
+const scenarioExplanation = (scenario?: { description?: string | null; businessScenario?: string | null } | null): string => {
+  const description = scenario?.description?.trim();
+  if (description) return description;
+  const brief = (scenario?.businessScenario ?? '').replace(/\s+/g, ' ').trim();
+  const sentence = brief.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? brief;
+  return sentence.length > 220 ? `${sentence.slice(0, 217)}...` : sentence;
+};
+
 const DATA_TYPE_OPTIONS: { value: 'transactional' | 'aggregational'; label: string; hint: string }[] = [
   { value: 'transactional', label: 'Transactional', hint: 'A history of records for each user' },
   { value: 'aggregational', label: 'Aggregational', hint: 'One summary row per record' }
@@ -1495,6 +1509,10 @@ export default function App() {
   const [confirmed, setConfirmed] = useState<ScenarioConfirmResponse | null>(null);
   const [deletedFieldNames, setDeletedFieldNames] = useState<string[]>([]);
   const [confirmedDeletions, setConfirmedDeletions] = useState('');
+  // Variables the reviewer adds or changes before approving (sent with POST /scenario/confirm as add / edit)
+  const [addedVariables, setAddedVariables] = useState<SchemaVariable[]>([]);
+  const [variableEdits, setVariableEdits] = useState<Record<string, Record<string, unknown>>>({});
+  const [variableModal, setVariableModal] = useState<{ mode: 'add' } | { mode: 'edit'; name: string } | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [generated, setGenerated] = useState<ScenarioGenerateResponse | null>(null);
   // Lets an answer that arrives after the user changed the selection be dropped.
@@ -1651,6 +1669,9 @@ export default function App() {
     setConfirmed(null);
     setDeletedFieldNames([]);
     setConfirmedDeletions('');
+    setAddedVariables([]);
+    setVariableEdits({});
+    setVariableModal(null);
     setFields([]);
     setSelectedFieldId(null);
     setGenerated(null);
@@ -1680,8 +1701,8 @@ export default function App() {
       return;
     }
     void catalog.chooseIndustry(industryId);
-    const name = catalog.industries.find(item => item.id === industryId)?.name ?? 'domain';
-    showToast(`Activated ${name}`);
+    // const name = catalog.industries.find(item => item.id === industryId)?.name ?? 'domain';
+    // showToast(`Activated ${name}`);
   };
 
   const handleSubDomainChange = (subDomainId: string) => {
@@ -1694,8 +1715,8 @@ export default function App() {
     resetPipeline();
     resetSelection();
     void catalog.chooseUseCase(nextUseCaseId);
-    const name = catalog.useCases.find(item => item.id === nextUseCaseId)?.name;
-    if (name) showToast(`Scoped use case: ${name} — customer journeys loaded`);
+    // const name = catalog.useCases.find(item => item.id === nextUseCaseId)?.name;
+    // if (name) showToast(`Scoped use case: ${name} — customer journeys loaded`);
   };
 
   // Select (or deselect) a scenario; its propose defaults and business description come from GET /catalog/scenarios/{id}
@@ -1786,6 +1807,9 @@ export default function App() {
     setConfirmed(null);
     setDeletedFieldNames([]);
     setConfirmedDeletions('');
+    setAddedVariables([]);
+    setVariableEdits({});
+    setVariableModal(null);
     setFields([]);
     setGenerated(null);
     setActiveTab('table');
@@ -1834,7 +1858,27 @@ export default function App() {
       return;
     }
     if (isConfirming) return;
-    const deletions = [...deletedFieldNames].sort().join('|');
+    // What the reviewer changed travels with the approval: variables added (add) and variables changed (edit). Where a column sits is
+    // set by the system, so a sequence is only sent when the reviewer overrode it.
+    const addedNames = new Set(addedVariables.map(v => String(v.name)));
+    const originalSequence = new Map(draft.variables.map(v => [String(v.name), typeof v.sequence === 'number' ? v.sequence : undefined]));
+    const editMap = new Map<string, Record<string, unknown>>();
+    for (const f of fields) {
+      if (addedNames.has(f.name) || f.sequence === undefined || f.sequence === originalSequence.get(f.name)) continue;
+      editMap.set(f.name, { sequence: f.sequence });
+    }
+    for (const [name, changes] of Object.entries(variableEdits) as [string, Record<string, unknown>][]) {
+      if (deletedFieldNames.includes(name) || addedNames.has(name)) continue;
+      editMap.set(name, { ...(editMap.get(name) ?? {}), ...changes });
+    }
+    const edits = [...editMap].map(([name, changes]) => ({ name, changes }));
+    const additions = addedVariables.map(v => {
+      const field = fields.find(f => f.name === v.name);
+      return field?.sequence !== undefined && v.sequence === undefined ? { ...v, sequence: field.sequence } : v;
+    });
+    const deletions = [...deletedFieldNames].sort().join('|')
+      + (edits.length ? `#${JSON.stringify(edits)}` : '')
+      + (additions.length ? `+${JSON.stringify(additions)}` : '');
     if (confirmed && deletions === confirmedDeletions) {
       setActiveStage(4);
       setMaxUnlockedStep(3);
@@ -1844,7 +1888,12 @@ export default function App() {
     const turn = pipelineTurn.current;
     setIsConfirming(true);
     try {
-      const result = await confirmScenario({ draft_id: draft.draft_id, delete: deletedFieldNames });
+      const result = await confirmScenario({
+        draft_id: draft.draft_id,
+        delete: deletedFieldNames,
+        ...(additions.length ? { add: additions } : {}),
+        ...(edits.length ? { edit: edits } : {})
+      });
       if (turn !== pipelineTurn.current) return;
       setConfirmed(result);
       setConfirmedDeletions(deletions);
@@ -1934,8 +1983,69 @@ export default function App() {
       return;
     }
     setFields(prev => prev.filter(f => f.id !== field.id));
+    setVariableEdits(prev => {
+      const { [field.name]: _dropped, ...rest } = prev;
+      return rest;
+    });
+    // A variable the reviewer added has nothing to delete on the server: it is simply not sent.
+    if (addedVariables.some(v => v.name === field.name)) {
+      setAddedVariables(prev => prev.filter(v => v.name !== field.name));
+      showToast(`Removed the new field "${field.name}".`);
+      return;
+    }
     setDeletedFieldNames(prev => (prev.includes(field.name) ? prev : [...prev, field.name]));
     showToast(`Removed field "${field.name}". Approve the schema to apply it.`);
+  };
+
+  // Variables can be added and changed until the schema is approved.
+  const canReview = Boolean(draft) && !confirmed;
+  const sourceOf = (name: string): string =>
+    String(draft?.variableSources?.[name.trim().toLowerCase()] ?? draft?.variableSources?.[name] ?? '').toUpperCase();
+  /** The definition shown for a variable: as proposed, with the reviewer's changes applied (or the variable the reviewer added). */
+  const variableFor = (name: string): SchemaVariable | undefined => {
+    const added = addedVariables.find(v => v.name === name);
+    if (added) return added;
+    const base = draft?.variables.find(v => v.name === name);
+    return base ? { ...base, ...(variableEdits[name] ?? {}) } : undefined;
+  };
+  const accessOf = (name: string): VariableAccess => {
+    if (addedVariables.some(v => v.name === name)) return 'full';
+    return ['DB_RECOMMENDED', 'USER_SELECTED'].includes(sourceOf(name)) ? 'locked' : 'limited';
+  };
+
+  const handleSaveVariable = (save: VariableSave) => {
+    const modal = variableModal;
+    if (!modal || !draft) return;
+    const entityKey = draft.entityKey ?? null;
+    const sources = { ...draft.variableSources, ...Object.fromEntries(addedVariables.map(v => [String(v.name).toLowerCase(), 'USER_ADDED'])) };
+    if (save.kind === 'definition') {
+      const definition = save.definition as SchemaVariable;
+      const row = toDataField({ ...definition, source: 'USER_ADDED' }, { ...sources, [String(definition.name).toLowerCase()]: 'USER_ADDED' }, entityKey);
+      if (modal.mode === 'add') {
+        setAddedVariables(prev => [...prev, definition]);
+        setFields(prev => [...prev, row]); // placed at the end for now; the backend puts it in story order when the schema is approved
+        showToast(`Added "${definition.name}". Approve the schema to apply it.`);
+      } else {
+        setAddedVariables(prev => prev.map(v => (v.name === modal.name ? definition : v)));
+        setFields(prev => prev.map(f => (f.name === modal.name ? { ...row, sequence: definition.sequence ?? f.sequence } : f)));
+        showToast(`Updated "${definition.name}".`);
+      }
+    } else if (modal.mode === 'edit') {
+      const { sequence, ...others } = save.changes;
+      const merged = Object.keys(others).length ? { ...(variableEdits[modal.name] ?? {}), ...others } : variableEdits[modal.name];
+      if (merged) setVariableEdits(prev => ({ ...prev, [modal.name]: merged }));
+      const base = draft.variables.find(v => v.name === modal.name);
+      setFields(prev => {
+        const next = prev.map(f => {
+          if (f.name !== modal.name) return f;
+          const shown = base ? toDataField({ ...base, ...(merged ?? {}) }, sources, entityKey) : f;
+          return { ...shown, id: f.id, sequence: typeof sequence === 'number' ? sequence : f.sequence };
+        });
+        return typeof sequence === 'number' ? bySequence(next) : next;
+      });
+      showToast(`Updated "${modal.name}". Approve the schema to apply it.`);
+    }
+    setVariableModal(null);
   };
 
   // Filtered fields
@@ -2072,7 +2182,7 @@ export default function App() {
         <FrontPage
           onLaunchStudio={() => {
             setCurrentView('studio');
-            showToast('Loaded ModelOS Pipeline Studio Canvas');
+            // showToast('Loaded ModelOS Pipeline Studio Canvas');
           }}
           showToast={showToast}
         />
@@ -2294,7 +2404,9 @@ export default function App() {
               </div>
             </div>
 
-            <main className="flex-1 grid grid-cols-12 gap-2 p-2 h-full overflow-hidden">
+            <main className={`flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 h-full ${
+              maxUnlockedStep === 1 ? 'overflow-y-auto grid-rows-[minmax(min-content,1fr)]' : 'overflow-hidden'
+            }`}>
           {/* =====================================================================
               PANE 1: CONTEXT & BUSINESS INPUT SELECTOR (Step 1)
               ===================================================================== */}
@@ -2304,7 +2416,7 @@ export default function App() {
               : maxUnlockedStep === 2
                 ? 'col-span-4'
                 : 'col-span-3'
-          } h-full flex flex-col bg-[#FFFFFF] border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${
+          } ${maxUnlockedStep === 1 ? 'h-fit self-center' : 'h-full'} flex flex-col bg-[#FFFFFF] border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${
             workflowStep === 1 ? 'ring-2 ring-[#E31837]/30' : ''
           }`}>
             {/* Pane Header */}
@@ -2385,9 +2497,6 @@ export default function App() {
                                   </span>
                                 </div>
                               </div>
-                              <span className="text-[10px] bg-white/25 border border-white/40 px-2 py-0.5 rounded-full text-white font-mono font-semibold shrink-0 ml-2 shadow-2xs">
-                                Active Domain
-                              </span>
                             </div>
                           );
                         }
@@ -2408,6 +2517,26 @@ export default function App() {
                               </span>
                             </div>
                           </button>
+                        );
+                      })}
+                    {!activeDomain && COMING_SOON_DOMAINS
+                      .filter(name => !catalog.industries.some(industry => industry.name.toLowerCase() === name.toLowerCase()))
+                      .map(name => {
+                        const { Logo, color } = getDomainVisual(name);
+                        return (
+                          <div
+                            key={`coming-soon-${name}`}
+                            aria-disabled="true"
+                            title="Not available yet"
+                            className="p-2.5 rounded-lg border border-[#E5DFD3] bg-[#F6F2EA]/40 text-left flex items-center gap-2.5 opacity-55 cursor-not-allowed select-none"
+                          >
+                            <div className="w-9 h-9 rounded-md bg-white border border-[#E5DFD3] flex items-center justify-center shrink-0 grayscale">
+                              <Logo className={`w-6 h-6 ${color}`} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-bold text-[#4D4D4F] block leading-snug truncate">{name}</span>
+                            </div>
+                          </div>
                         );
                       })}
                   </div>
@@ -2447,11 +2576,6 @@ export default function App() {
                         <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
                           Use case
                         </label>
-                        {useCaseId && (
-                          <span className="text-[9px] font-mono font-bold text-[#E31837] bg-[#E31837]/10 px-1.5 py-0.5 rounded">
-                            Use Case Active
-                          </span>
-                        )}
                       </div>
                       <div className="relative">
                         <select
@@ -2504,7 +2628,7 @@ export default function App() {
                           Scenarios Loaded
                         </span>
                         <span className="font-mono text-[#E31837] font-semibold">
-                          {customerJourneys.length} Journey{customerJourneys.length === 1 ? '' : 's'} Active
+                          {customerJourneys.length} Journey{customerJourneys.length === 1 ? '' : 's'}
                         </span>
                       </div>
                     ) : (
@@ -2562,22 +2686,17 @@ export default function App() {
                               <span
                                 className={`truncate block leading-tight ${
                                   isJourneyActive
-                                    ? 'text-[#29251D] font-bold'
+                                    ? 'text-[#E31837] font-bold'
                                     : 'text-[#29251D] font-medium'
                                 }`}
                               >
                                 {idx + 1}. {journey.name}
                               </span>
-                              <span className="text-[10px] text-[#4D4D4F] block">
+                              <span className={`text-[10px] block ${isJourneyActive ? 'text-[#E31837]' : 'text-[#4D4D4F]'}`}>
                                 {journey.scenarios.length} business scenarios
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              {isJourneyActive && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-[#E31837] text-white font-mono font-semibold rounded uppercase tracking-wider">
-                                  Active
-                                </span>
-                              )}
                               {isOpen ? (
                                 <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F]" />
                               ) : (
@@ -2596,27 +2715,34 @@ export default function App() {
                                     key={scenario.scenarioId}
                                     onClick={() => void handleScenarioSelect(scenario)}
                                     title={isSelected ? `Click to deselect ${scenario.label}` : `Click to select ${scenario.label}`}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] flex items-center justify-between transition-colors cursor-pointer group ${
+                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] flex flex-col items-stretch gap-1 transition-colors cursor-pointer group ${
                                       isSelected
                                         ? 'bg-[#FFFFFF] text-[#E31837] font-semibold border border-[#E5DFD3] shadow-2xs ring-1 ring-[#E31837]/30'
                                         : 'text-[#4D4D4F] hover:text-[#29251D] hover:bg-[#FFFFFF]/80'
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2 min-w-0 truncate pr-1">
-                                      <span
-                                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
-                                          isSelected
-                                            ? 'bg-[#E31837] text-white border-[#E31837]'
-                                            : 'bg-[#FFFFFF] text-[#29251D] border-[#E5DFD3] group-hover:border-[#29251D]'
-                                        }`}
-                                      >
-                                        {scenario.scenarioId}
-                                      </span>
-                                      <span className="truncate">{scenario.scenarioType}</span>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 min-w-0 truncate pr-1">
+                                        <span
+                                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
+                                            isSelected
+                                              ? 'bg-[#E31837] text-white border-[#E31837]'
+                                              : 'bg-[#FFFFFF] text-[#29251D] border-[#E5DFD3] group-hover:border-[#29251D]'
+                                          }`}
+                                        >
+                                          {scenario.scenarioId}
+                                        </span>
+                                        <span className="truncate">{scenario.scenarioType}</span>
+                                      </div>
+                                      {isSelected && (isScenarioLoading
+                                        ? <RefreshCw className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1 animate-spin" />
+                                        : <Check className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1" />)}
                                     </div>
-                                    {isSelected && (isScenarioLoading
-                                      ? <RefreshCw className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1 animate-spin" />
-                                      : <Check className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1" />)}
+                                    {scenarioExplanation(scenario) && (
+                                      <p className={`text-[10px] leading-snug font-normal ${isSelected ? 'text-[#4D4D4F]' : 'text-[#8E8B82] group-hover:text-[#4D4D4F]'}`}>
+                                        {scenarioExplanation(scenario)}
+                                      </p>
+                                    )}
                                   </button>
                                 );
                               })}
@@ -3000,7 +3126,7 @@ export default function App() {
                           ? 'bg-[#E31837]/10 text-[#E31837] font-bold'
                           : 'bg-[#F6F2EA] text-[#4D4D4F] border border-[#E5DFD3]'
                       }`}>
-                        {selectedScenario ? 'Active Selection' : 'Not Selected (Default)'}
+                        {selectedScenario ? (scenarioDetail?.label ?? selectedScenario) : 'Not Selected (Default)'}
                       </span>
                     </div>
 
@@ -3018,16 +3144,13 @@ export default function App() {
                                 {parentJourney?.name ?? 'Customer Journey'}
                               </span>
                             </div>
-                            <span className="text-[9px] px-1.5 py-0.5 bg-[#E31837] text-white font-mono font-semibold rounded uppercase tracking-wider">
-                              Active Selection
-                            </span>
                           </div>
                           <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2">
-                            {scenarioDetail?.businessScenario || (isScenarioLoading ? 'Loading the scenario description...' : 'No business description is configured for this scenario.')}
+                            {scenarioExplanation(scenarioDetail) || (isScenarioLoading ? 'Loading the scenario description...' : 'No description is configured for this scenario.')}
                           </p>
                           <div className="flex items-center justify-between pt-2 border-t border-[#E5DFD3] text-[11px]">
                             <span className="text-[#4D4D4F]">
-                              Active Scenario:{' '}
+                              Scenario:{' '}
                               <strong className="text-[#29251D] font-mono font-semibold">
                                 {scenarioDetail?.label ?? selectedScenario}
                               </strong>
@@ -3043,7 +3166,7 @@ export default function App() {
                       <div className="p-3.5 rounded-md border border-dashed border-[#E5DFD3] bg-[#F6F2EA]/40 text-center">
                         <div className="text-xs font-semibold text-[#29251D] mb-1">
                           {useCaseId
-                            ? `${catalog.useCases.find(item => item.id === useCaseId)?.name ?? 'Use Case'} Active`
+                            ? (catalog.useCases.find(item => item.id === useCaseId)?.name ?? 'Use Case')
                             : 'No Use Case Selected'}
                         </div>
                         <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2 max-w-sm mx-auto">
@@ -3114,6 +3237,15 @@ export default function App() {
                         {fields.length} Fields Active
                       </span>
                     </div>
+                    <button
+                      onClick={() => setVariableModal({ mode: 'add' })}
+                      disabled={!canReview}
+                      title={canReview ? 'Add a variable of your own to the schema' : 'The schema is approved; run the pipeline again to change variables'}
+                      className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-[#E31837]" />
+                      <span>Add variable</span>
+                    </button>
                     {/* DISABLED: 'Recommended Variables' dialog: not backed by the API yet
                     <button
                       onClick={() => setShowRecommendModal(true)}
@@ -3196,6 +3328,7 @@ export default function App() {
                     <table className="w-full min-w-[820px] text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F] font-mono text-[11px]">
+                          <th className="py-2 px-2 font-semibold w-12" title="Place of the column in the delivered data. The system orders the columns (customer before account, a start date before its end date, ...)">#</th>
                           <th className="py-2 px-3 font-semibold">Field Name</th>
                           <th className="py-2 px-3 font-semibold">Source</th>
                           <th className="py-2 px-3 font-semibold">Physical Type</th>
@@ -3208,7 +3341,7 @@ export default function App() {
                       <tbody className="divide-y divide-[#E5DFD3]">
                         {filteredFields.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="text-center py-8 text-xs text-[#8E8B82] bg-white">
+                            <td colSpan={8} className="text-center py-8 text-xs text-[#8E8B82] bg-white">
                               <p className="font-semibold text-[#29251D] mb-1">No data contract fields match current filter</p>
                               <p className="text-[11px] text-[#4D4D4F] mb-3">
                                 {fieldFilter === 'flagged'
@@ -3236,6 +3369,8 @@ export default function App() {
                                 isFlagged ? 'bg-amber-50/50' : ''
                               } ${selectedFieldId === field.id ? 'bg-[#F6F2EA]' : ''}`}
                             >
+                              <td className="py-2 px-2 font-mono text-[11px] text-[#8E8B82]">{fields.findIndex(f => f.id === field.id) + 1}</td>
+
                               <td className="py-2 px-3 font-mono font-semibold text-[#29251D]">
                                 <div className="flex items-center gap-1.5">
                                   {isFlagged ? (
@@ -3301,18 +3436,18 @@ export default function App() {
 
                               <td className="py-2 px-2 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  {/* DISABLED: editing constraints is not backed by the API yet
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingField(field);
+                                      setVariableModal({ mode: 'edit', name: field.name });
                                     }}
-                                    title="Edit Field Constraints"
-                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#29251D] hover:bg-white"
+                                    disabled={!canReview}
+                                    title={canReview ? 'Edit this variable' : 'The schema is approved; run the pipeline again to change variables'}
+                                    aria-label={`Edit ${field.name}`}
+                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#29251D] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     <Edit3 className="w-3 h-3" />
                                   </button>
-                                  */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -3917,7 +4052,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 */}
               </div>
 
-              {/* Quality verification: the validation report of the generated dataset (POST /scenario/generate) */}
+              {/* DISABLED for now: Quality Verification (the validation report of the generated dataset, POST /scenario/generate)
               <div className="mt-5 pt-3.5 border-t border-[#E5DFD3]">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
@@ -4014,6 +4149,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                   );
                 })()}
               </div>
+              */}
             </div>
 
             {/* Sticky Action Footer */}
@@ -4401,6 +4537,18 @@ LIMIT 5;
             </div>
           </div>
         </div>
+      )}
+
+      {variableModal && draft && (
+        <VariableModal
+          mode={variableModal.mode}
+          access={variableModal.mode === 'add' ? 'full' : accessOf(variableModal.name)}
+          variable={variableModal.mode === 'edit' ? variableFor(variableModal.name) : undefined}
+          columnNames={fields.map(f => f.name)}
+          transactional={draft.typeOfData !== 'aggregational'}
+          onSave={handleSaveVariable}
+          onClose={() => setVariableModal(null)}
+        />
       )}
 
       {/* DISABLED: editing a field's constraints is not backed by the API yet

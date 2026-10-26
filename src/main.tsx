@@ -7,6 +7,6 @@ import './index.css';
 createRoot(document.getElementById('root')!).render(
   <>
     <App />
-    <ToastContainer position="bottom-right" autoClose={4000} limit={4} newestOnTop pauseOnFocusLoss={false} theme="dark" />
+    <ToastContainer position="top-right" autoClose={4000} limit={4} newestOnTop pauseOnFocusLoss={false} theme="dark" />
   </>,
 );

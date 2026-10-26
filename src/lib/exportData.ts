@@ -3,12 +3,25 @@ import type { ScenarioGenerateResponse } from '../api/types';
 export type ExportFormat = 'csv' | 'json';
 
 type Row = Record<string, unknown>;
-type GenerateResult = Pick<ScenarioGenerateResponse, 'typeOfData' | 'records' | 'scenario_label' | 'requested_scenario_id' | 'scenario_id'>;
+type GenerateResult = Pick<ScenarioGenerateResponse, 'typeOfData' | 'records' | 'fields' | 'scenario_label' | 'requested_scenario_id' | 'scenario_id'>;
 
 export const EXPORT_MIME: Record<ExportFormat, string> = {
   csv: 'text/csv;charset=utf-8;',
   json: 'application/json',
 };
+
+/**
+ * The keys in the order of `fields`, the column order the backend delivers (the data's story: customer before account, a start before its
+ * end, then each event). A key `fields` does not list follows, in the order it was met.
+ */
+export function inFieldOrder(keys: string[], fields: readonly string[] | null | undefined): string[] {
+  const rank = new Map((fields ?? []).map((name, index) => [name, index] as const));
+  const unlisted = Number.MAX_SAFE_INTEGER;
+  return keys
+    .map((key, index) => ({ key, index }))
+    .sort((a, b) => (rank.get(a.key) ?? unlisted) - (rank.get(b.key) ?? unlisted) || a.index - b.index)
+    .map(({ key }) => key);
+}
 
 /**
  * One flat row per record.
@@ -64,7 +77,8 @@ export function buildExport(format: ExportFormat, result: GenerateResult): strin
 
   const rows = flattenRecords(result);
   if (rows.length === 0) return '';
-  const columns: string[] = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
+  // A user's own fields come first in each flat row, but the file follows the delivered column order so a CSV reads as the story.
+  const columns: string[] = inFieldOrder(Array.from(new Set(rows.flatMap(row => Object.keys(row)))), result.fields);
   if (columns.length === 0) return '';
 
   return [columns.map(escapeCsvValue).join(','), ...rows.map(row => columns.map(column => escapeCsvValue(row[column])).join(','))].join('\r\n');

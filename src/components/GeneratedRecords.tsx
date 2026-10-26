@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, FileJson, Search } from 'lucide-react';
 import type { ScenarioGenerateResponse } from '../api/types';
 import { notify } from '../lib/notify';
+import { inFieldOrder } from '../lib/exportData';
 
 type AnyRecord = Record<string, any>;
 
@@ -102,9 +103,9 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                   `USER_${entityIdx + 1}`,
               );
               const history: AnyRecord[] = Array.isArray(entity?.records) ? entity.records : [];
-              const entityFields = Object.entries(entity ?? {}).filter(([key]) => key !== 'records');
+              const entityFields = inFieldOrder(Object.keys(entity ?? {}).filter(key => key !== 'records'), fields).map(key => [key, entity?.[key]] as const);
               const expanded = expandedUsers[userKey] ?? false;
-              const historyFields = expanded ? Array.from(new Set(history.flatMap(record => Object.keys(record ?? {})))) : [];
+              const historyFields = expanded ? inFieldOrder(Array.from(new Set(history.flatMap(record => Object.keys(record ?? {})))), fields) : [];
 
               return (
                 <div key={`${userKey}_${entityIdx}`} className="rounded-md border border-[#E5DFD3] overflow-hidden">
