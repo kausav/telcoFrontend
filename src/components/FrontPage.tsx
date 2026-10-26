@@ -21,10 +21,12 @@ import videoFramesImg from '../assets/images/video_motion_frames_1791354285350.j
 
 interface FrontPageProps {
   onLaunchStudio: () => void;
+  /** Opens the ER model proof of concept. The link is hidden when this is not given. */
+  onOpenEr?: () => void;
   showToast: (msg: string) => void;
 }
 
-export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio }) => {
+export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio, onOpenEr }) => {
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState(65);
 
@@ -392,6 +394,15 @@ export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio }) => {
             </span>
           </div>
 
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {onOpenEr && (
+            <button
+              onClick={onOpenEr}
+              className="bg-white hover:bg-slate-50 text-indigo-700 font-semibold px-5 py-2.5 rounded-xl border border-indigo-200 transition-all cursor-pointer text-xs w-full sm:w-auto justify-center"
+            >
+              ER model (proof of concept)
+            </button>
+          )}
           <button
             onClick={onLaunchStudio}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2 cursor-pointer text-xs w-full sm:w-auto justify-center hover:scale-[1.02]"
@@ -399,6 +410,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio }) => {
             <span>Launch Pipeline Studio</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+          </div>
         </footer>
 
       </div>

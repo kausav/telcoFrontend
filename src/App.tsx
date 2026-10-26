@@ -62,6 +62,7 @@ import {
 
 import { TechMahindraLogo } from './components/TechMahindraLogo';
 import { FrontPage } from './components/FrontPage';
+import { ErWorkspace } from './components/er/ErWorkspace';
 import { GeneratedRecords } from './components/GeneratedRecords';
 import type {
   CatalogCountry,
@@ -1457,7 +1458,8 @@ const pct = (score: number | undefined): string => (typeof score === 'number' ? 
 
 export default function App() {
   // View mode: 'frontpage' (document front page) vs 'studio' (workbench canvas)
-  const [currentView, setCurrentView] = useState<'frontpage' | 'studio'>('frontpage');
+  // 'er' is the ER model proof of concept; the address ending in #/er opens it directly.
+  const [currentView, setCurrentView] = useState<'frontpage' | 'studio' | 'er'>(() => (window.location.hash === '#/er' ? 'er' : 'frontpage'));
 
   // Navigation & Domain state
   const [activeNav, setActiveNav] = useState<'workbench' | 'contracts' | 'dkp' | 'quality' | 'audit' | 'settings'>('workbench');
@@ -2176,6 +2178,17 @@ export default function App() {
   };
   */
 
+  if (currentView === 'er') {
+    return (
+      <ErWorkspace
+        onBack={() => {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          setCurrentView('frontpage');
+        }}
+      />
+    );
+  }
+
   if (currentView === 'frontpage') {
     return (
       <div className="min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[#F8FAFC]">
@@ -2183,6 +2196,10 @@ export default function App() {
           onLaunchStudio={() => {
             setCurrentView('studio');
             // showToast('Loaded ModelOS Pipeline Studio Canvas');
+          }}
+          onOpenEr={() => {
+            window.location.hash = '#/er';
+            setCurrentView('er');
           }}
           showToast={showToast}
         />
