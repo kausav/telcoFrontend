@@ -53,18 +53,18 @@ export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio, onOpenEr }
       {/* Main Layout Card Container - Full Fit Landscape Width */}
       <div className="relative z-10 w-full bg-white/85 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-[0_10px_30px_-5px_rgba(99,102,241,0.08),0_4px_12px_-2px_rgba(0,0,0,0.03)] my-auto flex flex-col justify-between">
         
-        {/* 1. Top Logo Header - Increased size of Tech Mahindra & ModelOS logos */}
+        {/* 1. Top Logo Header - ModelOS first, then Tech Mahindra */}
         <header className="flex items-center justify-between gap-4 mb-6">
-          {/* Left: Tech Mahindra Logo + ModelOS | Source (Larger sizing) */}
+          {/* Left: ModelOS logo first, then the Tech Mahindra logo */}
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-            <div className="flex items-center select-none py-1" title="Tech Mahindra">
-              <TechMahindraLogo className="h-10 sm:h-12 md:h-14 w-auto" />
+            <div className="flex items-center select-none py-1" title="ModelOS">
+              <ModelOSLogo className="h-10 sm:h-12 md:h-14" />
             </div>
 
             <div className="h-8 sm:h-10 w-px bg-slate-300/80 hidden sm:block" />
 
-            <div className="flex items-center select-none py-1" title="ModelOS">
-              <ModelOSLogo size="lg" className="h-10 sm:h-12 md:h-14" />
+            <div className="flex items-center select-none py-1" title="Tech Mahindra">
+              <TechMahindraLogo className="h-10 sm:h-12 md:h-14 w-auto" />
             </div>
           </div>
 
