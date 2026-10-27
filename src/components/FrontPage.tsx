@@ -6,13 +6,9 @@ import {
   Film,
   Play,
   Pause,
-  Shield,
-  Zap,
-  Lock,
   ArrowRight
 } from 'lucide-react';
-import { TechMahindraLogo } from './TechMahindraLogo';
-import { ModelOSLogo } from './ModelOSLogo';
+import { BrandHeader } from './BrandHeader';
 
 import brainMriImg from '../assets/images/brain_mri_scan_1791354239789.jpg';
 import facePortrait1 from '../assets/images/synthetic_face_portrait_1791354252438.jpg';
@@ -51,28 +47,10 @@ export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio }) => {
       {/* Main Layout Card Container - Full Fit Landscape Width */}
       <div className="relative z-10 w-full bg-white/85 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200/80 shadow-[0_10px_30px_-5px_rgba(99,102,241,0.08),0_4px_12px_-2px_rgba(0,0,0,0.03)] my-auto flex flex-col justify-between">
         
-        {/* 1. Top Logo Header - Increased size of Tech Mahindra & ModelOS logos */}
+        {/* 1. Top Logo Header - ModelOS | Tech Mahindra | Source */}
         <header className="flex items-center justify-between gap-4 mb-6">
-          {/* Left: Tech Mahindra Logo + ModelOS | Source (Larger sizing) */}
-          <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-            <div className="flex items-center select-none py-1" title="Tech Mahindra">
-              <TechMahindraLogo className="h-10 sm:h-12 md:h-14 w-auto" />
-            </div>
-
-            <div className="h-8 sm:h-10 w-px bg-slate-300/80 hidden sm:block" />
-
-            <div className="flex items-center select-none py-1" title="ModelOS">
-              <ModelOSLogo size="lg" className="h-10 sm:h-12 md:h-14" />
-            </div>
-          </div>
-
-          {/* Right Status Badge */}
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono font-medium text-slate-500 bg-slate-100/90 px-3.5 py-1.5 rounded-full border border-slate-200/70 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Enterprise Platform
-            </span>
-          </div>
+          {/* Left: ModelOS logo | Tech Mahindra logo | Source */}
+          <BrandHeader onHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
         </header>
 
         {/* 2. Main Hero Headline & Subtitle (Kept in ONE line) */}
@@ -374,24 +352,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({ onLaunchStudio }) => {
         </section>
 
         {/* 4. Bottom Feature Pill Footer */}
-        <footer className="pt-4 border-t border-slate-200/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-medium text-slate-500">
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 justify-center sm:justify-start">
-            <span className="flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-emerald-500" />
-              <span>GDPR & HIPAA Compliant</span>
-            </span>
-            <span className="text-slate-300 hidden sm:inline">•</span>
-            <span className="flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-indigo-500" />
-              <span>Scalable Pipelines</span>
-            </span>
-            <span className="text-slate-300 hidden sm:inline">•</span>
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-purple-500" />
-              <span>Zero Model Bias</span>
-            </span>
-          </div>
-
+        <footer className="pt-4 border-t border-slate-200/60 flex flex-col sm:flex-row items-center justify-end gap-4 text-xs font-medium text-slate-500">
           <button
             onClick={onLaunchStudio}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2 cursor-pointer text-xs w-full sm:w-auto justify-center hover:scale-[1.02]"
