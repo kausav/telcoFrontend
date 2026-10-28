@@ -7,10 +7,13 @@ import { setting } from '../lib/appConfig';
  * the single-container deployment where the backend also serves this UI: requests then use relative addresses.
  */
 const RAW_HOST = setting('VITE_API_HOST', import.meta.env.VITE_API_HOST as string | undefined);
-export const API_BASE_URL: string = RAW_HOST === 'same-origin' || RAW_HOST === '/' ? '' : (RAW_HOST || 'http://localhost:8000').replace(/\/+$/, '');
+/** The path the app is served under ('' for the root, '/source' when built with VITE_BASE_PATH=/source/). Same-origin requests start with it. */
+const BASE: string = (import.meta.env.BASE_URL as string | undefined) || '/';
+const APP_PATH: string = (BASE.startsWith('/') ? BASE : '/').replace(/\/+$/, '');
+export const API_BASE_URL: string = RAW_HOST === 'same-origin' || RAW_HOST === '/' ? APP_PATH : (RAW_HOST || 'http://localhost:8000').replace(/\/+$/, '');
 
 /** The server's address as a person should read it (the page's own address when requests are relative). */
-export const API_BASE_LABEL: string = API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+export const API_BASE_LABEL: string = API_BASE_URL.startsWith('http') ? API_BASE_URL : (typeof window !== 'undefined' ? window.location.origin : '') + API_BASE_URL;
 
 /** Reads are quick; the LLM-backed calls (propose, confirm, generate) pass their own, longer, timeout. */
 export const DEFAULT_TIMEOUT_MS = 30_000;

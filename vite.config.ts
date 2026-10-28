@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Where the app is served from. '/' normally; '/source/' when a shared load balancer gives this app only that path
+    // (build with VITE_BASE_PATH=/source/ ). It is fixed at build time: the page's file addresses are written into index.html.
+    base: process.env.VITE_BASE_PATH || '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
