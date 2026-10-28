@@ -78,6 +78,7 @@ import { getCountries, getScenarioDetail } from './api/catalogApi';
 import { useCatalog } from './hooks/useCatalog';
 import { notify, notifyApiError, type ToastKind } from './lib/notify';
 import { getDomainVisual } from './lib/domainVisual';
+import { setting } from './lib/appConfig';
 import { bySequence, toDataField, toDataFields, type DataField } from './lib/schema';
 import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from './lib/exportData';
 
@@ -1423,7 +1424,7 @@ const RECORD_PRESETS = [10, 100, 1000, 5000];
 const MAX_SEED = 2_147_483_647;
 
 /** Country preselected in the Country dropdown (and used if /catalog/countries cannot be loaded). Set VITE_DEFAULT_COUNTRY to change it. */
-const DEFAULT_COUNTRY: string = (import.meta.env.VITE_DEFAULT_COUNTRY as string | undefined) || 'IN';
+const DEFAULT_COUNTRY: string = setting('VITE_DEFAULT_COUNTRY', import.meta.env.VITE_DEFAULT_COUNTRY as string | undefined) || 'IN';
 
 type DownloadFormat = ExportFormat;
 

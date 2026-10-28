@@ -1,9 +1,16 @@
 import axios, { AxiosError } from 'axios';
 import type { ApiErrorBody } from './types';
+import { setting } from '../lib/appConfig';
 
-/** Backend base URL; set VITE_API_BASE_URL in .env (see .env.example). */
-export const API_BASE_URL: string =
-  ((import.meta.env.VITE_API_HOST as string | undefined) || 'http://localhost:8000').replace(/\/+$/, '');
+/**
+ * Backend base URL, from VITE_API_HOST. The value "same-origin" (or "/") means the page and the API come from the same server, as in
+ * the single-container deployment where the backend also serves this UI: requests then use relative addresses.
+ */
+const RAW_HOST = setting('VITE_API_HOST', import.meta.env.VITE_API_HOST as string | undefined);
+export const API_BASE_URL: string = RAW_HOST === 'same-origin' || RAW_HOST === '/' ? '' : (RAW_HOST || 'http://localhost:8000').replace(/\/+$/, '');
+
+/** The server's address as a person should read it (the page's own address when requests are relative). */
+export const API_BASE_LABEL: string = API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
 /** Reads are quick; the LLM-backed calls (propose, confirm, generate) pass their own, longer, timeout. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -30,11 +37,11 @@ export const api = axios.create({
 });
 
 /**
- * Static API token, sent on every request until a real login flow exists. Set VITE_API_TOKEN in .env to the value of the
- * backend's API_STATIC_TOKENS. (A token in a front-end bundle is visible to anyone who can load the page: fine for an internal
+ * Static API token, sent on every request until a real login flow exists. It comes from the server at run time (see lib/appConfig.ts) or, for
+ * local development, from VITE_API_TOKEN in .env (a value of the backend's API_STATIC_TOKENS). (A token in a front-end bundle is visible to anyone who can load the page: fine for an internal
  * stop-gap, replace it with a login flow before the UI is exposed.)
  */
-const API_TOKEN: string = ((import.meta.env.VITE_API_TOKEN as string | undefined) || '').trim();
+const API_TOKEN: string = setting('VITE_API_TOKEN', import.meta.env.VITE_API_TOKEN as string | undefined);
 
 api.interceptors.request.use(config => {
   if (API_TOKEN) config.headers.set('Authorization', `Bearer ${API_TOKEN}`);
@@ -56,7 +63,7 @@ export function getApiErrorStatus(error: unknown): number | null {
 export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (axios.isAxiosError(error)) {
     if (error.code === 'ECONNABORTED') return 'The request timed out. Please try again.';
-    if (!error.response) return `Cannot reach the server at ${API_BASE_URL}. Check that the backend is running.`;
+    if (!error.response) return `Cannot reach the server at ${API_BASE_LABEL}. Check that the backend is running.`;
     const detail = getApiErrorBody(error);
     if (detail) {
       // Validation errors list the offending fields; show them instead of the generic "Request validation failed".
