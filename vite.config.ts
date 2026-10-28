@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
-    // Where the app is served from. '/' normally; '/source/' when a shared load balancer gives this app only that path
-    // (build with VITE_BASE_PATH=/source/ ). It is fixed at build time: the page's file addresses are written into index.html.
-    base: process.env.VITE_BASE_PATH || '/',
+    // Where the app is served from. This deployment sits behind a shared load balancer that gives it only /source and /source/*, so
+    // a production build defaults to '/source/' (the page's file addresses are written into index.html at build time). The dev server
+    // stays at '/'. Override with VITE_BASE_PATH, e.g. VITE_BASE_PATH=/ for an app served from the root of its own address.
+    base: process.env.VITE_BASE_PATH || (command === 'build' ? '/source/' : '/'),
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
