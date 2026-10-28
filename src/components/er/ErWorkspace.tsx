@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { exportErZip, generateErModel, getErSample, listErSamples, validateErModel } from '../../api/erApi';
 import { API_BASE_URL, getApiErrorMessage } from '../../api/client';
-import type { ErGenerateResult, ErPlan, ErRequest, ErSampleSummary } from '../../api/erTypes';
+import type { ErGenerateResult, ErModelJson, ErPlan, ErRequest, ErSampleSummary } from '../../api/erTypes';
 import { downloadBlob, downloadErTableCsv } from '../../lib/erExport';
+import { isFail, type EditResult } from '../../lib/erModelEdit';
 import { notify, notifyApiError } from '../../lib/notify';
+import { BrandHeader } from '../BrandHeader';
 import { ErDataView } from './ErDataView';
-import { ErDiagram } from './ErDiagram';
+import { ErDiagram, type DiagramSelection } from './ErDiagram';
+import { ErInspector, type EditEffect } from './ErInspector';
+import type { DiagramView, Point, Positions } from './erLayout';
 import { ErIntegrityView, type ErStatusFilter } from './ErIntegrityView';
 import { ErPlanView } from './ErPlanView';
 
@@ -54,6 +58,16 @@ function entityNames(text: string): Set<string> | null {
   }
 }
 
+/** The model written in the text, or null while the text is not a JSON object. */
+function parseModel(text: string): ErModelJson | null {
+  try {
+    const model: unknown = JSON.parse(text);
+    return model && typeof model === 'object' && !Array.isArray(model) ? (model as ErModelJson) : null;
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   onBack: () => void;
 }
@@ -72,6 +86,7 @@ export function ErWorkspace({ onBack }: Props) {
   const [counts, setCounts] = useState<Record<string, string>>({});
 
   const [plan, setPlan] = useState<ErPlan | null>(null);
+  const [lastPlan, setLastPlan] = useState<ErPlan | null>(null); // the diagram stays on screen while an edit makes the model invalid for a moment
   const [errors, setErrors] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
@@ -84,6 +99,11 @@ export function ErWorkspace({ onBack }: Props) {
 
   const [tab, setTab] = useState<Tab>('diagram');
   const [fit, setFit] = useState(true);
+  const [view, setView] = useState<DiagramView>('layered');
+  const [positions, setPositions] = useState<Partial<Record<DiagramView, Positions>>>({});
+  const [editing, setEditing] = useState(false);
+  const [selection, setSelection] = useState<DiagramSelection>(null);
+  const [editNotes, setEditNotes] = useState<string[]>([]);
   const [table, setTable] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [back, setBack] = useState<{ table: string; filter: string } | null>(null);
@@ -135,6 +155,10 @@ export function ErWorkspace({ onBack }: Props) {
     return () => clearTimeout(timer);
   }, [request]);
 
+  useEffect(() => {
+    if (plan) setLastPlan(plan);
+  }, [plan]);
+
   // ---- loading the samples ---------------------------------------------------------------------------------------------
   const loadSample = useCallback(async (id: string) => {
     if (id === CUSTOM) return;
@@ -145,6 +169,10 @@ export function ErWorkspace({ onBack }: Props) {
       setText(JSON.stringify(model, null, 2));
       setSeedText('');
       setCounts({});
+      setLastPlan(null);
+      setPositions({});
+      setSelection(null);
+      setEditNotes([]);
       setResult(null);
       setStale(false);
       setTable(null);
@@ -225,6 +253,50 @@ export function ErWorkspace({ onBack }: Props) {
     }
   };
 
+  /** Applies a change made on the diagram to the model text; the model is then checked again like any other edit. */
+  const applyEdit = (run: (model: ErModelJson) => EditResult, effect?: EditEffect): string | null => {
+    const model = parseModel(text);
+    if (!model) return 'The JSON cannot be read. Fix it on the left first.';
+    const outcome = run(model);
+    if (isFail(outcome)) return outcome.error;
+    const next = JSON.stringify(outcome.model, null, 2);
+    const names = entityNames(next);
+    immediate.current = true;
+    setText(next);
+    setSampleId(CUSTOM);
+    edited();
+    setEditNotes(outcome.notes);
+    setCounts(previous => {
+      const kept: Record<string, string> = {};
+      for (const [name, value] of Object.entries(previous)) {
+        const now = effect?.renamed && name === effect.renamed.from ? effect.renamed.to : name;
+        if (names ? names.has(now) : true) kept[now] = value;
+      }
+      return kept;
+    });
+    setPositions(previous => {
+      const moved: Partial<Record<DiagramView, Positions>> = {};
+      for (const [id, spots] of Object.entries(previous) as [DiagramView, Positions][]) {
+        moved[id] = Object.fromEntries(
+          Object.entries(spots)
+            .filter(([name]) => name !== effect?.removedTable)
+            .map(([name, at]) => [effect?.renamed && name === effect.renamed.from ? effect.renamed.to : name, at] as const),
+        );
+      }
+      return moved;
+    });
+    if (effect && 'select' in effect) setSelection(effect.select ?? null);
+    return null;
+  };
+
+  const moveTable = (name: string, to: Point) => setPositions(previous => ({ ...previous, [view]: { ...(previous[view] ?? {}), [name]: to } }));
+  const resetLayout = () => setPositions(previous => ({ ...previous, [view]: {} }));
+  const toggleEditing = () => {
+    setEditing(value => !value);
+    setSelection(null);
+    setEditNotes([]);
+  };
+
   const openTable = (name: string) => {
     if (!result) {
       notify('Generate data first to see the rows.', 'info');
@@ -266,8 +338,34 @@ export function ErWorkspace({ onBack }: Props) {
 
   let panel: ReactNode;
   if (tab === 'diagram') {
-    panel = plan ? (
-      <ErDiagram plan={plan} result={result} fit={fit} onToggleFit={() => setFit(value => !value)} onOpenTable={openTable} />
+    const shownPlan = plan ?? (problem || errors.length ? lastPlan : null);
+    const parsed = editing ? parseModel(text) : null;
+    panel = shownPlan ? (
+      <ErDiagram
+        plan={shownPlan}
+        result={result}
+        fit={fit}
+        onToggleFit={() => setFit(value => !value)}
+        onOpenTable={openTable}
+        view={view}
+        onView={setView}
+        positions={positions[view] ?? {}}
+        onMove={moveTable}
+        onResetLayout={resetLayout}
+        editing={editing}
+        onToggleEdit={toggleEditing}
+        editBlocked={problem ? 'Fix the JSON on the left to edit the diagram.' : null}
+        selection={selection}
+        onSelect={setSelection}
+        outdated={plan === null}
+        inspector={
+          parsed ? (
+            <ErInspector plan={shownPlan} model={parsed} selection={selection} onSelect={setSelection} onEdit={applyEdit} notes={editNotes} onDismissNotes={() => setEditNotes([])} />
+          ) : (
+            <div className="px-2.5 py-2 rounded-lg text-[12.5px] bg-red-100 text-red-700">The JSON cannot be read. Fix it on the left to keep editing here.</div>
+          )
+        }
+      />
     ) : (
       <Empty>{problem ? 'Fix the JSON to see the diagram.' : errors.length ? 'Fix the problems listed on the left to see the diagram.' : checking ? 'Checking the model…' : 'Choose a sample or paste a model.'}</Empty>
     );
@@ -309,8 +407,8 @@ export function ErWorkspace({ onBack }: Props) {
   return (
     <div className="h-screen w-screen overflow-auto flex flex-col bg-[#F6F2EA] text-[#29251D] font-sans">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 bg-white border-b border-[#E5DFD3]">
-        <button type="button" onClick={onBack} className="px-3 py-1.5 rounded-lg border border-[#E5DFD3] bg-white hover:bg-[#F6F2EA] text-[13px] cursor-pointer">← Back</button>
-        <span className="font-bold tracking-wide">ModelOS<small className="ml-2 font-medium text-[#6B6557] hidden sm:inline">ER model</small></span>
+        <BrandHeader onHome={onBack} />
+        <span className="font-semibold text-[#29251D]">ER model</span>
         <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">proof of concept</span>
         <span className="flex-1" />
         <span className="flex items-center gap-2 text-[12px] text-[#6B6557]" data-testid="er-connection">
@@ -378,7 +476,7 @@ export function ErWorkspace({ onBack }: Props) {
                 ))}
               </div>
             )}
-            <div className="grid gap-1.5 max-h-[190px] overflow-auto" data-testid="er-messages" aria-live="polite">
+            <div className="grid gap-1.5 max-h-[190px] overflow-auto" data-testid="er-messages" data-checking={checking ? 'yes' : 'no'} aria-live="polite">
               {problem && <Message kind="err">{problem}</Message>}
               {errors.map((message, index) => <Message key={`e${index}`} kind="err">{message}</Message>)}
               {warnings.map((message, index) => <Message key={`w${index}`} kind="warn">{message}</Message>)}
@@ -400,7 +498,7 @@ export function ErWorkspace({ onBack }: Props) {
               }}
               className="w-full flex-1 min-h-[300px] resize-none border border-[#E5DFD3] rounded-lg p-2.5 bg-[#FBF9F4] font-mono text-[12.5px] leading-relaxed whitespace-pre"
             />
-            <span className="text-[12px] text-[#6B6557]">Edit the JSON; the diagram and plan update as you type. The model format is described in the backend’s docs/ER_MODEL_POC.md.</span>
+            <span className="text-[12px] text-[#6B6557]">Edit the JSON, or press “Edit diagram” on the Diagram tab to change tables, columns and relationships there; the diagram and plan update as you go. The model format is described in the backend’s docs/ER_MODEL_POC.md.</span>
           </div>
         </section>
 

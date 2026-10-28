@@ -60,7 +60,7 @@ import {
   Video
 } from 'lucide-react';
 
-import { TechMahindraLogo } from './components/TechMahindraLogo';
+import { BrandHeader } from './components/BrandHeader';
 import { FrontPage } from './components/FrontPage';
 import { ErWorkspace } from './components/er/ErWorkspace';
 import { GeneratedRecords } from './components/GeneratedRecords';
@@ -1501,6 +1501,8 @@ export default function App() {
   // Data contract fields state
   const [fields, setFields] = useState<DataField[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  // Rows ticked in the variable table for "Delete selected" (variable ids).
+  const [checkedFieldIds, setCheckedFieldIds] = useState<string[]>([]);
   const [fieldFilter, setFieldFilter] = useState<'all' | 'flagged' | 'pii'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -1514,6 +1516,9 @@ export default function App() {
   // Variables the reviewer adds or changes before approving (sent with POST /scenario/confirm as add / edit)
   const [addedVariables, setAddedVariables] = useState<SchemaVariable[]>([]);
   const [variableEdits, setVariableEdits] = useState<Record<string, Record<string, unknown>>>({});
+  useEffect(() => {
+    setCheckedFieldIds([]); // a new proposal starts with nothing ticked
+  }, [draft]);
   const [variableModal, setVariableModal] = useState<{ mode: 'add' } | { mode: 'edit'; name: string } | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [generated, setGenerated] = useState<ScenarioGenerateResponse | null>(null);
@@ -1978,25 +1983,23 @@ export default function App() {
     showToast(`Downloaded synthetic data in ${fmt.toUpperCase()} format (${generated.total_records.toLocaleString()} records).`, 'success');
   };
 
-  // Remove a variable from the schema; the removal is sent with the approval (POST /scenario/confirm).
-  const handleDeleteField = (field: DataField) => {
-    if (field.required) {
-      showToast(`"${field.name}" is required and cannot be removed`, 'warning');
-      return;
-    }
-    setFields(prev => prev.filter(f => f.id !== field.id));
-    setVariableEdits(prev => {
-      const { [field.name]: _dropped, ...rest } = prev;
-      return rest;
-    });
+  // Remove the ticked variables from the schema; the removal is sent with the approval (POST /scenario/confirm).
+  // Required variables and the entity key cannot be ticked, and are skipped here as well.
+  const handleDeleteSelected = () => {
+    const doomed = fields.filter(f => checkedFieldIds.includes(f.id) && !f.required);
+    if (doomed.length === 0) return;
+    const doomedIds = new Set(doomed.map(f => f.id));
+    const doomedNames = new Set(doomed.map(f => f.name));
     // A variable the reviewer added has nothing to delete on the server: it is simply not sent.
-    if (addedVariables.some(v => v.name === field.name)) {
-      setAddedVariables(prev => prev.filter(v => v.name !== field.name));
-      showToast(`Removed the new field "${field.name}".`);
-      return;
-    }
-    setDeletedFieldNames(prev => (prev.includes(field.name) ? prev : [...prev, field.name]));
-    showToast(`Removed field "${field.name}". Approve the schema to apply it.`);
+    const addedNames = new Set(addedVariables.filter(v => doomedNames.has(v.name)).map(v => v.name));
+    const serverNames = doomed.map(f => f.name).filter(name => !addedNames.has(name));
+    setFields(prev => prev.filter(f => !doomedIds.has(f.id)));
+    setVariableEdits(prev => Object.fromEntries(Object.entries(prev).filter(([name]) => !doomedNames.has(name))));
+    setAddedVariables(prev => prev.filter(v => !addedNames.has(v.name)));
+    setDeletedFieldNames(prev => [...prev, ...serverNames.filter(name => !prev.includes(name))]);
+    setCheckedFieldIds([]);
+    const what = doomed.length === 1 ? `field "${doomed[0].name}"` : `${doomed.length} fields`;
+    showToast(serverNames.length === 0 ? `Removed ${what}.` : `Removed ${what}. Approve the schema to apply it.`);
   };
 
   // Variables can be added and changed until the schema is approved.
@@ -2060,6 +2063,17 @@ export default function App() {
     }
     return true;
   });
+
+  // Ticking rows for "Delete selected": required variables cannot be ticked, and the header box acts on the rows shown.
+  const checkedFields = fields.filter(f => checkedFieldIds.includes(f.id) && !f.required);
+  const shownRemovable = filteredFields.filter(f => !f.required);
+  const allShownChecked = shownRemovable.length > 0 && shownRemovable.every(f => checkedFieldIds.includes(f.id));
+  const someShownChecked = shownRemovable.some(f => checkedFieldIds.includes(f.id));
+  const toggleChecked = (id: string) => setCheckedFieldIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  const toggleAllShown = () =>
+    setCheckedFieldIds(prev =>
+      allShownChecked ? prev.filter(id => !shownRemovable.some(f => f.id === id)) : [...prev, ...shownRemovable.map(f => f.id).filter(id => !prev.includes(id))],
+    );
 
   /* DISABLED: recommended-variables dialog filters and the volume-calibrated seed suggestions (static content, not backed by the API)
   // Filtered recommended scenario variables (from modal search)
@@ -2213,15 +2227,9 @@ export default function App() {
           TOP APPLICATION HEADER (Fixed 56px, Canvas Background #F6F2EA)
           ========================================================================= */}
       <header className="h-[56px] min-h-[56px] border-b border-[#E5DFD3] bg-[#F6F2EA] px-4 flex items-center justify-between z-20">
-        {/* Left: TechM Logo + App Title */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center select-none pr-3 border-r border-[#E5DFD3]" title="Tech Mahindra">
-            <TechMahindraLogo className="h-7 w-auto hover:opacity-95 transition-opacity" />
-          </div>
-          <h1 className="text-[16px] font-semibold text-[#29251D] tracking-tight leading-none">
-            ModelOS - Synthetic Data Generator
-          </h1>
-        </div>
+        {/* Left: ModelOS logo | Tech Mahindra logo | Source (to the home page) */}
+        <h1 className="sr-only">ModelOS - Synthetic Data Generator</h1>
+        <BrandHeader onHome={() => setCurrentView('frontpage')} />
 
         {/* Right side controls */}
         <div className="flex items-center gap-2" />
@@ -3254,15 +3262,32 @@ export default function App() {
                         {fields.length} Fields Active
                       </span>
                     </div>
-                    <button
-                      onClick={() => setVariableModal({ mode: 'add' })}
-                      disabled={!canReview}
-                      title={canReview ? 'Add a variable of your own to the schema' : 'The schema is approved; run the pipeline again to change variables'}
-                      className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleDeleteSelected}
+                        disabled={!canReview || checkedFields.length === 0}
+                        title={
+                          !canReview
+                            ? 'The schema is approved; run the pipeline again to change variables'
+                            : checkedFields.length === 0
+                            ? 'Tick one or more variables to delete them'
+                            : `Delete the ${checkedFields.length} selected variable${checkedFields.length === 1 ? '' : 's'}`
+                        }
+                        className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#9C1936] hover:bg-red-50 text-[#9C1936] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#E5DFD3] disabled:hover:bg-white"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{checkedFields.length > 0 ? `Delete selected (${checkedFields.length})` : 'Delete selected'}</span>
+                      </button>
+                      <button
+                        onClick={() => setVariableModal({ mode: 'add' })}
+                        disabled={!canReview}
+                        title={canReview ? 'Add a variable of your own to the schema' : 'The schema is approved; run the pipeline again to change variables'}
+                        className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <Plus className="w-3.5 h-3.5 text-[#E31837]" />
-                      <span>Add variable</span>
+                        <Plus className="w-3.5 h-3.5 text-[#E31837]" />
+                        <span>Add variable</span>
                     </button>
+                    </div>
                     {/* DISABLED: 'Recommended Variables' dialog: not backed by the API yet
                     <button
                       onClick={() => setShowRecommendModal(true)}
@@ -3345,6 +3370,20 @@ export default function App() {
                     <table className="w-full min-w-[820px] text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F] font-mono text-[11px]">
+                          <th className="py-2 pl-3 pr-1 w-8">
+                            <input
+                              type="checkbox"
+                              ref={el => {
+                                if (el) el.indeterminate = someShownChecked && !allShownChecked;
+                              }}
+                              checked={allShownChecked}
+                              onChange={toggleAllShown}
+                              disabled={!canReview || shownRemovable.length === 0}
+                              aria-label="Select all variables shown"
+                              title="Select all variables shown (required variables cannot be selected)"
+                              className="w-3.5 h-3.5 accent-[#E31837] cursor-pointer disabled:cursor-not-allowed"
+                            />
+                          </th>
                           <th className="py-2 px-2 font-semibold w-12" title="Place of the column in the delivered data. The system orders the columns (customer before account, a start date before its end date, ...)">#</th>
                           <th className="py-2 px-3 font-semibold">Field Name</th>
                           <th className="py-2 px-3 font-semibold">Source</th>
@@ -3358,7 +3397,7 @@ export default function App() {
                       <tbody className="divide-y divide-[#E5DFD3]">
                         {filteredFields.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="text-center py-8 text-xs text-[#8E8B82] bg-white">
+                            <td colSpan={9} className="text-center py-8 text-xs text-[#8E8B82] bg-white">
                               <p className="font-semibold text-[#29251D] mb-1">No data contract fields match current filter</p>
                               <p className="text-[11px] text-[#4D4D4F] mb-3">
                                 {fieldFilter === 'flagged'
@@ -3384,8 +3423,19 @@ export default function App() {
                               onClick={() => setSelectedFieldId(field.id)}
                               className={`hover:bg-[#F6F2EA]/60 transition-colors cursor-pointer ${
                                 isFlagged ? 'bg-amber-50/50' : ''
-                              } ${selectedFieldId === field.id ? 'bg-[#F6F2EA]' : ''}`}
+                              } ${selectedFieldId === field.id ? 'bg-[#F6F2EA]' : ''} ${checkedFieldIds.includes(field.id) && !field.required ? 'bg-red-50/60' : ''}`}
                             >
+                              <td className="py-2 pl-3 pr-1 w-8" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={checkedFieldIds.includes(field.id) && !field.required}
+                                  onChange={() => toggleChecked(field.id)}
+                                  disabled={!canReview || field.required}
+                                  aria-label={`Select ${field.name}`}
+                                  title={field.required ? 'Required field (cannot be removed)' : `Select ${field.name}`}
+                                  className="w-3.5 h-3.5 accent-[#E31837] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                />
+                              </td>
                               <td className="py-2 px-2 font-mono text-[11px] text-[#8E8B82]">{fields.findIndex(f => f.id === field.id) + 1}</td>
 
                               <td className="py-2 px-3 font-mono font-semibold text-[#29251D]">
@@ -3464,17 +3514,6 @@ export default function App() {
                                     className="p-1 rounded text-[#4D4D4F] hover:text-[#29251D] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     <Edit3 className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteField(field);
-                                    }}
-                                    disabled={field.required}
-                                    title={field.required ? 'Required field (cannot be removed)' : 'Delete Field'}
-                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#9C1936] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#4D4D4F]"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
                                   </button>
                                 </div>
                               </td>
