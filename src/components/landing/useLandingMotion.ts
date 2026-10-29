@@ -123,11 +123,13 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
       all(el, '[data-rows]').forEach((rows) => {
         const track = rows.querySelector<HTMLElement>('.rows__track');
         if (!track || RM) return;
+        let half = track.scrollHeight / 2;
+        const ro = new ResizeObserver(() => { half = track.scrollHeight / 2; });
+        ro.observe(track);
         const stop = loop(rows, (t) => {
-          const half = track.scrollHeight / 2;
           track.style.transform = `translateY(${-((t * 16) % half)}px)`;
         });
-        undo.push(() => { stop(); track.style.transform = ''; });
+        undo.push(() => { stop(); ro.disconnect(); track.style.transform = ''; });
       });
 
       // ---------- hero ribbon: tiles drift right to left and recycle, no duplicates ----------
@@ -138,6 +140,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
         let baseH = win.offsetHeight;
         let offset = 0;
         let vel = 0;
+        let sizedFor = 0; // the tile height the widths below were last written for
         const onResize = () => { if (!win.style.height) baseH = win.offsetHeight; };
         window.addEventListener('resize', onResize);
         const layout = (dt: number) => {
@@ -146,6 +149,8 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
           const gap = 6;
           const widths = tiles.map((t) => th * +(t.dataset.ar || 1));
           const total = widths.reduce((a, b) => a + b + gap, 0);
+          const resized = th !== sizedFor;
+          sizedFor = th;
           const lv = lenis ? Math.abs(lenis.velocity || 0) : 0;
           vel += (26 + lv * 6 - vel) * 0.08;
           offset = (offset + vel * dt) % total;
@@ -153,8 +158,10 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
           tiles.forEach((t, i) => {
             let px = x;
             if (px + widths[i] < -total * 0.25) px += total;
-            t.style.width = widths[i] + 'px';
-            t.style.height = th + 'px';
+            if (resized) {
+              t.style.width = widths[i] + 'px';
+              t.style.height = th + 'px';
+            }
             t.style.transform = `translate3d(${px}px,${(wh - th) / 2}px,0)`;
             x += widths[i] + gap;
           });
@@ -187,7 +194,7 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
             .to(stage, { top: 0, bottom: 0, duration: 1 }, 0)
             .to(win, { height: () => window.innerHeight, width: () => window.innerWidth, borderRadius: 0, duration: 1 }, 0)
             .to(heroFoot, { opacity: 0, y: -24, duration: 0.35 }, 0)
-            .to(all(hero, '[data-hud], .illus'), { opacity: 0, duration: 0.25 }, 0.5)
+            .to(all(hero, '[data-hud], .illus, .hero__label'), { opacity: 0, duration: 0.25 }, 0.5)
             .to(veil, { opacity: 1, duration: 0.4 }, 0.55)
             .to(over, { opacity: 1, duration: 0.3 }, 0.7)
             .from(over ? Array.from(over.children) : [], { y: 40, duration: 0.3, stagger: 0.05 }, 0.7);
@@ -220,20 +227,22 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
       }
 
       // ---------- statement: words light up as you read down ----------
+      // The lighting follows the reader's own scroll, so it stays on with reduced motion too.
       all(el, '[data-lit]').forEach((p) => {
-        if (RM) return;
         gsap.to(all(p, '.w'), { opacity: 1, ease: 'none', stagger: 0.08, scrollTrigger: { trigger: p, start: 'top 82%', end: 'bottom 52%', scrub: true } });
       });
 
-      // ---------- chapters: pinned on wide screens, stacked on small ones ----------
+      // ---------- chapters: held on screen on wide screens, stacked on small ones ----------
+      // The hold is CSS sticky (class and height come from the markup), driven by the native scroll position,
+      // so it behaves the same with or without motion.
       all(el, '[data-chapters]').forEach((sec) => {
-        const pin = sec.querySelector<HTMLElement>('.chapters__pin');
-        if (wide && !RM && pin) {
+        if (wide) {
           const texts = all(sec, '.chapters__texts > .ch-text');
           const visuals = all(sec, '.chapters__stage > .ch-visual');
           const idx = all(sec, '.chapters__index li');
           const n = visuals.length;
           let cur = -1;
+          let raf = 0;
           const set = (i: number) => {
             if (i === cur) return;
             cur = i;
@@ -241,17 +250,23 @@ export function useLandingMotion(root: RefObject<HTMLDivElement | null>, wide: b
             visuals.forEach((v, k) => v.classList.toggle('is-active', k === i));
             idx.forEach((l, k) => l.classList.toggle('is-active', k === i));
           };
-          set(0);
-          ScrollTrigger.create({
-            trigger: sec, start: 'top top', end: () => '+=' + Math.round(n * window.innerHeight * 0.95), pin, anticipatePin: 1,
-            onUpdate: (self) => {
-              const p = self.progress * n;
-              set(Math.min(n - 1, Math.floor(p)));
-              idx.forEach((l, k) => l.style.setProperty('--p', Math.max(0, Math.min(1, p - k)).toFixed(3)));
-              visuals.forEach((v, k) => v.style.setProperty('--lp', Math.max(0, Math.min(1, p - k)).toFixed(3)));
-            },
-          });
+          const update = () => {
+            raf = 0;
+            const r = sec.getBoundingClientRect();
+            const prog = Math.max(0, Math.min(1, -r.top / Math.max(1, r.height - window.innerHeight)));
+            const p = prog * n;
+            set(Math.min(n - 1, Math.floor(p)));
+            idx.forEach((l, k) => l.style.setProperty('--p', Math.max(0, Math.min(1, p - k)).toFixed(3)));
+            visuals.forEach((v, k) => v.style.setProperty('--lp', Math.max(0, Math.min(1, p - k)).toFixed(3)));
+          };
+          const queue = () => { if (!raf) raf = requestAnimationFrame(update); };
+          window.addEventListener('scroll', queue, { passive: true });
+          window.addEventListener('resize', queue);
+          update();
           undo.push(() => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener('scroll', queue);
+            window.removeEventListener('resize', queue);
             [...texts, ...visuals, ...idx].forEach((x) => { x.classList.remove('is-active'); x.style.removeProperty('--p'); x.style.removeProperty('--lp'); });
           });
         } else {

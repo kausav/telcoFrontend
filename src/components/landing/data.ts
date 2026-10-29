@@ -36,5 +36,3 @@ const makeRow = (i: number): SynthRow => {
 
 export const ROWS: SynthRow[] = Array.from({ length: 40 }, (_, i) => makeRow(i));
 
-export const PEXELS_STREET =
-  'https://images.pexels.com/photos/37280731/pexels-photo-37280731/free-photo-of-bustling-city-traffic-on-a-busy-street.jpeg?auto=compress&cs=tinysrgb&w=900';

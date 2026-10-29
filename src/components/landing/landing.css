@@ -1,5 +1,17 @@
-/* ModelOS Source landing page. The supplied stylesheet, scoped under .ml so nothing leaks into the workspace
-   (html/body rules apply to .ml, other selectors are prefixed with it, @keyframes mq is renamed ml-mq). */
+/* ModelOS Source landing page.
+   The supplied stylesheet, scoped under .ml so nothing here reaches the workspace: html/body rules apply to .ml, every other
+   selector is prefixed with it, and @keyframes mq is renamed ml-mq. Rules for classes the page never uses were removed.
+   Fonts are self-hosted from src/assets/landing/fonts (no external font service). */
+@font-face{font-family:'Mona Sans';font-style:normal;font-weight:200 900;font-stretch:75% 125%;font-display:swap;src:url(../../assets/landing/fonts/mona-sans.woff2) format('woff2')}
+@font-face{font-family:'DM Mono';font-style:normal;font-weight:400;font-display:swap;src:url(../../assets/landing/fonts/dm-mono-400.woff2) format('woff2')}
+@font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/dm-mono-500.woff2) format('woff2')}
+@font-face{font-family:'Noto Sans Devanagari';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-devanagari-500.woff2) format('woff2')}
+@font-face{font-family:'Noto Sans Tamil';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-tamil-500.woff2) format('woff2')}
+@font-face{font-family:'Noto Sans Bengali';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-bengali-500.woff2) format('woff2')}
+
+/* While the hero intro plays, Lenis stops the page; this also stops touch scrolling. */
+html.lenis-stopped{overflow:hidden}
+
 
 /* ModelOS landing system — shared across every module page */
 .ml{
@@ -30,7 +42,8 @@
 .ml button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 .ml h1,.ml h2,.ml h3,.ml h4,.ml p,.ml ol,.ml ul,.ml figure{margin:0;padding:0}
 .ml ol,.ml ul{list-style:none}
-.ml ::selection,.ml::selection{background:var(--signal);color:#fff}
+/* Selected text turns red on a faint wash; the wash is translucent so a highlighted line never paints over the letters of the line above it. */
+.ml ::selection,.ml::selection{background:rgba(227,24,55,.12);color:var(--signal);-webkit-text-fill-color:var(--signal)}
 .ml :focus-visible{outline:2px solid var(--signal);outline-offset:3px}
 
 /* ---------- type ---------- */
@@ -41,12 +54,10 @@
 .ml .t-m{font-size:clamp(21px,1.75vw,28px);font-weight:500;letter-spacing:-.022em;line-height:1.15}
 .ml .t-body{font-size:clamp(16px,1.12vw,18px);line-height:1.55;letter-spacing:-.005em}
 .ml .t-meta{font-family:var(--mono);font-size:11px;line-height:1.4;letter-spacing:.06em;text-transform:uppercase}
-.ml .t-num{font-feature-settings:"tnum";font-variant-numeric:tabular-nums}
+
 .ml .mute{color:var(--on-dark-2)} .ml .s-light .mute{color:var(--on-light-2)}
 .ml .mute-3{color:var(--on-dark-3)} .ml .s-light .mute-3{color:var(--on-light-3)}
 .ml .sig{color:var(--signal)}
-.ml .wide{font-stretch:125%}
-.ml .cond{font-stretch:75%}
 
 /* ---------- sections ---------- */
 .ml .s-dark{background:var(--ink);color:var(--on-dark)}
@@ -54,8 +65,8 @@
 .ml .wrap{padding-inline:var(--pad)}
 .ml .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--gut)}
 .ml .sec{position:relative;padding-block:clamp(88px,13vw,200px)}
-.ml .rule{height:1px;background:var(--hair-d)} .ml .s-light .rule{background:var(--hair-l)}
-.ml .grain::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.07;mix-blend-mode:overlay;z-index:3;
+ 
+.ml .grain::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.045;z-index:3;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
 
 /* ---------- header: the module's own lockup and one action ---------- */
@@ -88,8 +99,9 @@
 .ml .link:hover::after{transform:scaleX(0)}
 
 /* ---------- hero (shared grammar: a headline that parts to reveal the module's material) ---------- */
-.ml .hero{position:relative;height:100vh;height:100svh;min-height:600px;background:var(--ink);color:var(--on-dark);overflow:hidden}
-.ml .hero__stage{position:absolute;inset:var(--nav-h) 0 var(--foot-h,128px) 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,1.6vh,20px)}
+.ml .hero{--hero-fs:clamp(44px,min(8.6vw,12.4vh),168px);--hero-gap:clamp(10px,1.6vh,20px);position:relative;height:100vh;height:100svh;min-height:600px;background:var(--ink);color:var(--on-dark);overflow:hidden}
+.ml .hero .t-hero{font-size:var(--hero-fs)}
+.ml .hero__stage{position:absolute;inset:var(--nav-h) 0 var(--foot-h,128px) 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--hero-gap)}
 .ml .hero__line{display:block;overflow:hidden;padding-block:.06em .1em;margin-block:-.06em -.1em;text-align:center;padding-inline:var(--pad);white-space:nowrap}
 .ml .hero__line>span{display:inline-block}
 .ml .hero__window{position:relative;flex:none;width:calc(100% - 2 * var(--pad));height:var(--win-h,clamp(180px,40vh,480px));overflow:hidden;background:var(--ink-2);border-radius:3px;z-index:2}
@@ -102,6 +114,11 @@
 .ml .hero__cap b{color:var(--on-dark);font-weight:400}
 .ml .hero__over{position:absolute;inset:auto var(--pad) var(--pad) var(--pad);z-index:4;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;opacity:0;pointer-events:none}
 .ml .hero__veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,11,12,0) 45%,rgba(11,11,12,.72));opacity:0;z-index:3;pointer-events:none}
+/* The window takes only the height the label and both lines leave free, so short laptop screens never overlap the headline. */
+@media (min-width:901px){
+  .ml .hero__window{height:max(140px,min(var(--win-h,clamp(180px,40vh,480px)),calc(max(100vh,600px) - var(--nav-h) - var(--foot-h,128px) - 1.8 * var(--hero-fs) - 3 * var(--hero-gap) - 56px)))}
+}
+@media (min-width:901px) and (max-height:720px){.ml .hero{--foot-h:112px}}
 @media (max-width:900px){
   .ml .hero{--foot-h:212px}
   .ml .hero__line{white-space:normal;text-wrap:balance}
@@ -118,46 +135,12 @@
 @media (max-width:900px){.ml .hero__label{font-size:10px;padding:8px 10px}}
 
 /* ---------- board: big numerals in columns ---------- */
-.ml .vers__head{grid-column:1 / span 7}
-.ml .vers__note{grid-column:9 / span 4;align-self:end}
-.ml .vers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:clamp(56px,7vw,110px);border-top:1px solid var(--ink)}
-.ml .ver{padding:20px var(--gut) 28px 0;border-right:1px solid var(--hair-l);display:flex;flex-direction:column;min-height:clamp(340px,34vw,500px)}
-.ml .ver+.ver{padding-left:var(--gut)}
-.ml .ver:last-child{border-right:0}
-.ml .ver header{display:flex;justify-content:space-between;color:var(--on-light-2)}
-.ml .ver__n{font-size:clamp(120px,17vw,300px);font-weight:500;font-stretch:85%;letter-spacing:-.06em;line-height:.8;margin-top:auto;font-feature-settings:normal;font-variant-numeric:normal}
-.ml .ver__n.sig{color:var(--signal)}
-.ml .ver__sq{display:flex;gap:6px;margin:22px 0 14px}
-.ml .ver__sq i{width:22px;height:22px;border:1.5px solid var(--ink);position:relative}
-.ml .ver__sq i.p{background:var(--signal);border-color:var(--signal)}
-.ml .ver__sq i.f::after{content:"";position:absolute;left:5px;top:3px;width:6px;height:11px;border:solid var(--ink);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
-.ml .ver p{color:var(--on-light-2);max-width:30ch}
-@media (max-width:900px){.ml .vers__head,.ml .vers__note{grid-column:1 / -1}.ml .vers__note{margin-top:24px}.ml .vers{grid-template-columns:1fr}.ml .ver{border-right:0;border-bottom:1px solid var(--hair-l);min-height:0;padding:20px 0 28px}.ml .ver+.ver{padding-left:0}.ml .ver__n{margin-top:20px}}
 
 /* ---------- report covers ---------- */
-.ml .rep{position:absolute;inset:0;padding:clamp(20px,2.2vw,32px);display:flex;flex-direction:column;transition:transform .8s var(--ease)}
-.ml .out:hover .rep{transform:translateY(-8px)}
-.ml .rep__top{display:flex;justify-content:space-between;gap:12px}
-.ml .rep--eng .rep__top .mute-3,.ml .rep--rec .rep__top .mute-3{color:var(--on-light-3)}
-.ml .rep--brief{background:#151517;color:var(--paper)}
-.ml .rep--brief .mute-3{color:var(--on-dark-3)}
-.ml .rep--brief h4{margin-top:auto;font-size:clamp(34px,3.3vw,56px);font-weight:500;letter-spacing:-.045em;line-height:.95;max-width:9ch}
-.ml .rep--brief .bar{display:grid;grid-template-columns:3fr 1fr 1fr;gap:3px;margin-top:28px}
-.ml .rep--brief .bar i{height:8px;background:var(--paper)} .ml .rep--brief .bar i:nth-child(2){background:var(--on-dark-3)} .ml .rep--brief .bar i:nth-child(3){background:var(--signal)}
-.ml .rep--eng{background:var(--paper);color:var(--ink)}
-.ml .rep--eng pre{margin:auto 0 0;font-family:var(--mono);font-size:clamp(10.5px,.86vw,12.5px);line-height:1.75;white-space:pre-wrap;color:var(--on-light-2)}
-.ml .rep--eng pre b{color:var(--ink);font-weight:500} .ml .rep--eng pre em{font-style:normal;color:var(--signal)}
-.ml .rep--eng h4{font-size:clamp(24px,2.2vw,34px);font-weight:500;letter-spacing:-.035em;line-height:1;margin-top:24px}
-.ml .rep--rec{background:var(--paper-2);color:var(--ink)}
-.ml .rep--rec table{width:100%;border-collapse:collapse;margin-top:auto;font-size:13px}
-.ml .rep--rec td{border-top:1px solid var(--hair-l);padding:9px 0;vertical-align:top}
-.ml .rep--rec td:first-child{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--on-light-3);width:38%;padding-top:11px}
-.ml .rep--rec h4{font-size:clamp(24px,2.2vw,34px);font-weight:500;letter-spacing:-.035em;line-height:1;margin-top:24px}
-.ml .rep__dig{margin-top:16px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--on-light-3);word-break:break-all}
-.ml .reps__head{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:var(--gut);margin-bottom:clamp(48px,6vw,88px)}
-.ml .reps__head h2{grid-column:1 / span 7}
-.ml .reps__head p{grid-column:9 / span 4;align-self:end}
-@media (max-width:900px){.ml .reps__head h2,.ml .reps__head p{grid-column:1 / -1}.ml .reps__head p{margin-top:20px}}
+
+  
+
+ 
 
 /* ---------- statement: scroll-lit paragraph ---------- */
 .ml .statement{padding-block:clamp(96px,15vw,240px)}
@@ -189,6 +172,7 @@
 .ml .s-dark .chapters__stage{background:var(--ink-2)}
 .ml .ch-visual{position:absolute;inset:0;opacity:0;transition:opacity .8s var(--ease);pointer-events:none}
 .ml .ch-visual.is-active{opacity:1;pointer-events:auto}
+.ml .chapters.is-sticky .chapters__pin{position:sticky;top:0}
 .ml .chapters.is-static .chapters__pin{height:auto;display:block;padding:0 var(--pad)}
 .ml .chapters.is-static .chapters__rail{display:none}
 .ml .chapters.is-static .chapters__stage{display:contents}
@@ -235,12 +219,6 @@
 @media (max-width:900px){.ml .prin__head{grid-column:1 / -1;position:static;margin-bottom:48px}.ml .prin__list{grid-column:1 / -1}.ml .prin__item{grid-template-columns:40px 1fr}}
 
 /* ---------- outputs ---------- */
-.ml .outs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gut)}
-.ml .out{position:relative;display:flex;flex-direction:column}
-.ml .out__art{position:relative;aspect-ratio:4/5;overflow:hidden;background:var(--ink-2);border-radius:3px;margin-bottom:22px}
-.ml .s-light .out__art{background:var(--paper-2)}
-.ml .out h3{margin-bottom:8px}
-@media (max-width:900px){.ml .outs{grid-template-columns:1fr;row-gap:56px}}
 
 /* ---------- marquee ---------- */
 .ml .marquee{overflow:hidden;white-space:nowrap;display:flex}
@@ -260,15 +238,14 @@
 @media (max-width:600px){.ml .foot{flex-direction:column;align-items:flex-start}}
 
 /* ---------- utilities used by reveals ---------- */
-.ml .reveal-mask{overflow:hidden}
+
 .ml [data-reveal]{will-change:transform}
 .ml .media-fallback{background:linear-gradient(135deg,var(--ink-3),var(--ink-2))}
-.ml .vis-label{position:absolute;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;line-height:1;white-space:nowrap}
+
 .ml .illus{position:absolute;right:12px;bottom:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;opacity:.45;z-index:5}
 
 @media (prefers-reduced-motion:reduce){
   .ml,.ml *,.ml *::before,.ml *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-  .ml .statement__p .w{opacity:1}
 }
 
 /* ---------- source ---------- */
@@ -349,3 +326,16 @@
 .ml .custs .marquee__track span::after{content:"";width:6px;height:6px;background:var(--signal);opacity:.9}
 @media (max-width:900px){.ml .alt__head,.ml .alt__note{grid-column:1 / -1}.ml .alt__note{margin-top:-24px}}
 
+
+/* Small screens (stacked chapters): the scenario table gets the height its content needs instead of a fixed box, shows the
+   first rows with the four columns that fit, and leaves room under it for the "Illustrative" tag. */
+.ml .ch-block .ch-frame--auto{aspect-ratio:auto}
+.ml .ch-block .ch-frame--auto .ch-visual{position:relative;inset:auto}
+.ml .ch-block .ch-frame--auto .gen{position:relative;inset:auto;padding:22px 16px 34px}
+.ml .ch-block .ch-frame--auto .gen__table{flex:none}
+.ml .ch-block .ch-frame--auto .gen__r:nth-child(n+10){display:none}
+@media (max-width:600px){
+  .ml .gen__h,.ml .gen__r{grid-template-columns:1.25fr .95fr 1.15fr 1fr;gap:6px;padding-left:6px}
+  .ml .gen__h{font-size:9px;letter-spacing:.03em;line-height:1.25;white-space:normal;align-items:end}
+  .ml .gen__h span:nth-child(n+4):nth-child(-n+5),.ml .gen__r span:nth-child(n+4):nth-child(-n+5){display:none}
+}

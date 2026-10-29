@@ -4,9 +4,10 @@
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type Lenis from 'lenis';
 import './landing.css';
-import logoDark from '../../assets/images/landing-logo-dark.webp';
-import logoLight from '../../assets/images/landing-logo-light.webp';
-import { CUSTOMERS, PEXELS_STREET, ROWS, STATEMENT } from './data';
+import logoDark from '../../assets/landing/logos/logo-dark.webp';
+import logoLight from '../../assets/landing/logos/logo-light.webp';
+import { CUSTOMERS, ROWS, STATEMENT } from './data';
+import { media } from './media';
 import { useLandingMotion } from './useLandingMotion';
 
 const vars = (o: Record<string, string | number>) => o as CSSProperties;
@@ -80,7 +81,7 @@ const ReviewVisual = () => (
   <>
     <div className="col">
       <figure>
-        <video data-src="https://videos.pexels.com/video-files/34816958/14761058_1280_720_30fps.mp4" muted playsInline loop></video>
+        <video data-src={media.streetNewDelhiWide} muted playsInline loop></video>
         <Cap kind="Video" note="Street, New Delhi" />
         <div className="review t-meta">
           <span><i style={vars({ '--d': '900ms' })}></i>Reviewer 1</span>
@@ -89,7 +90,7 @@ const ReviewVisual = () => (
         </div>
       </figure>
       <figure>
-        <img src={PEXELS_STREET} alt="" style={{ objectPosition: '50% 62%' }} />
+        <img src={media.streetKolkata} alt="" style={{ objectPosition: '50% 62%' }} />
         <Cap kind="Image" />
         <div className="box" style={vars({ left: '18%', top: '46%', width: '20%', height: '26%', '--d': '300ms' })}></div>
         <div className="tag" style={vars({ left: '40%', top: '40%', '--d': '500ms' })}>
@@ -98,7 +99,7 @@ const ReviewVisual = () => (
         </div>
       </figure>
       <figure>
-        <video data-src="https://videos.pexels.com/video-files/13283745/13283745-sd_960_540_25fps.mp4" muted playsInline loop></video>
+        <video data-src={media.speechAudio} muted playsInline loop></video>
         <canvas data-wave></canvas>
         <Cap kind="Audio" note="Speech · Tamil" />
       </figure>
@@ -121,8 +122,8 @@ const FieldVisual = () => (
   </>
 );
 
-const VISUALS: Array<{ body: ReactNode; bg?: string }> = [
-  { body: <GenVisual />, bg: 'var(--paper-2)' },
+const VISUALS: Array<{ body: ReactNode; bg?: string; auto?: boolean }> = [
+  { body: <GenVisual />, bg: 'var(--paper-2)', auto: true },
   { body: <ReviewVisual /> },
   { body: <FieldVisual />, bg: '#0E0E0F' },
 ];
@@ -192,16 +193,16 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
                   </ul>
                 </Tile>
                 <Tile ar=".74">
-                  <img src={PEXELS_STREET} alt="Buses, cars and pedestrians on a busy street in Kolkata" />
+                  <img src={media.streetKolkata} alt="Buses, cars and pedestrians on a busy street in Kolkata" />
                   <Cap kind="Image" note="Street, Kolkata" />
                 </Tile>
                 <Tile ar=".86" className="tile--audio tile--dim">
-                  <Video src="https://videos.pexels.com/video-files/13283745/13283745-sd_960_540_25fps.mp4" eager />
+                  <Video src={media.speechAudio} eager />
                   <canvas data-wave></canvas>
                   <Cap kind="Audio" note="Speech" />
                 </Tile>
                 <Tile ar="1.42" className="tile--dim">
-                  <Video src="https://videos.pexels.com/video-files/34816958/14761057_960_540_30fps.mp4" eager />
+                  <Video src={media.streetNewDelhiTile} eager />
                   <Cap kind="Video" note="Street, New Delhi" />
                 </Tile>
                 <Tile ar="1.3">
@@ -209,11 +210,11 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
                   <Cap kind="LiDAR" note="Point cloud" />
                 </Tile>
                 <Tile ar="1.5" className="tile--dim">
-                  <Video src="https://videos.pexels.com/video-files/4609536/4609536-sd_960_540_24fps.mp4" eager />
+                  <Video src={media.aerialSurvey} eager />
                   <Cap kind="Video" note="Aerial survey" />
                 </Tile>
                 <Tile ar="1.1" className="tile--dim">
-                  <Video src="https://videos.pexels.com/video-files/4907961/4907961-sd_960_540_30fps.mp4" eager />
+                  <Video src={media.railCorridor} eager />
                   <Cap kind="Video" note="Rail corridor" />
                 </Tile>
               </div>
@@ -241,7 +242,12 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
           </div>
         </section>
 
-        <section className={'s-light chapters' + (wide ? '' : ' is-static')} data-theme="light" data-chapters>
+        <section
+          className={'s-light chapters ' + (wide ? 'is-sticky' : 'is-static')}
+          style={wide ? { height: `calc(100svh + ${TITLES.length * 95}vh)` } : undefined}
+          data-theme="light"
+          data-chapters
+        >
           <div className="chapters__pin">
             {wide ? (
               <>
@@ -261,7 +267,7 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
               TEXTS.map((t, i) => (
                 <div className="ch-block" key={i}>
                   <div className="ch-text is-active">{t}</div>
-                  <div className="ch-frame">
+                  <div className={'ch-frame' + (VISUALS[i].auto ? ' ch-frame--auto' : '')}>
                     <div className="ch-visual" style={vars({ '--lp': 1, ...(VISUALS[i].bg ? { background: VISUALS[i].bg as string } : {}) })}>{VISUALS[i].body}</div>
                   </div>
                 </div>
@@ -290,7 +296,7 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
         <section className="film s-dark" data-theme="dark" data-film>
           <div className="film__sticky">
             <div className="film__frame">
-              <video data-src="https://videos.pexels.com/video-files/6112549/6112549-hd_1920_1080_30fps.mp4" muted playsInline loop></video>
+              <video data-src={media.sydneyTrainsFilm} muted playsInline loop></video>
               <div className="film__copy">
                 <blockquote className="t-xl">Twenty thousand days of people walking the network, removed.</blockquote>
                 <p className="t-meta">Altavec for Sydney Trains<br />Measurement and inspection digital twin</p>
