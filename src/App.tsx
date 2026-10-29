@@ -61,7 +61,7 @@ import {
 } from 'lucide-react';
 
 import { BrandHeader } from './components/BrandHeader';
-import { FrontPage } from './components/FrontPage';
+import { LandingPage } from './components/landing/LandingPage';
 import { GeneratedRecords } from './components/GeneratedRecords';
 import type {
   CatalogCountry,
@@ -2192,17 +2192,8 @@ export default function App() {
   */
 
   if (currentView === 'frontpage') {
-    return (
-      <div className="min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[#F8FAFC]">
-        <FrontPage
-          onLaunchStudio={() => {
-            setCurrentView('studio');
-            // showToast('Loaded ModelOS Pipeline Studio Canvas');
-          }}
-          showToast={showToast}
-        />
-      </div>
-    );
+    // The landing page scrolls with the window (its pinned sections need that), so no scroll container wraps it.
+    return <LandingPage onOpenWorkspace={() => setCurrentView('studio')} />;
   }
 
   return (
@@ -2211,9 +2202,9 @@ export default function App() {
           TOP APPLICATION HEADER (Fixed 56px, Canvas Background #F6F2EA)
           ========================================================================= */}
       <header className="h-[56px] min-h-[56px] border-b border-[#E5DFD3] bg-[#F6F2EA] px-4 flex items-center justify-between z-20">
-        {/* Left: ModelOS logo | Tech Mahindra logo | Source (to the home page) */}
+        {/* Left: the ModelOS Source logo (one image; opens the ModelOS platform) */}
         <h1 className="sr-only">ModelOS - Synthetic Data Generator</h1>
-        <BrandHeader onHome={() => setCurrentView('frontpage')} />
+        <BrandHeader />
 
         {/* Right side controls */}
         <div className="flex items-center gap-2" />
