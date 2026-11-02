@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
-  ArrowRight,
   Search,
   Sliders,
   Shield,
@@ -45,7 +44,6 @@ import {
   HelpCircle,
   Code,
   Zap,
-  CheckCheck,
   FileSpreadsheet,
   Network,
   ArrowLeft,
@@ -61,6 +59,9 @@ import {
 } from 'lucide-react';
 
 import { BrandHeader } from './components/BrandHeader';
+import { BtnLabel } from './components/BtnLabel';
+import { StepIntro } from './components/StepIntro';
+import { ContextBar } from './components/ContextBar';
 import { LandingPage } from './components/landing/LandingPage';
 import { GeneratedRecords } from './components/GeneratedRecords';
 import type {
@@ -72,7 +73,7 @@ import type {
   ScenarioGenerateResponse,
   SchemaVariable
 } from './api/types';
-import { proposeScenario, confirmScenario, generateScenario } from './api/scenarioApi';
+import { proposeScenario, importScenarioCsv, confirmScenario, generateScenario } from './api/scenarioApi';
 import VariableModal, { type VariableAccess, type VariableSave } from './components/VariableModal';
 import { getCountries, getScenarioDetail } from './api/catalogApi';
 import { useCatalog } from './hooks/useCatalog';
@@ -80,6 +81,8 @@ import { notify, notifyApiError, type ToastKind } from './lib/notify';
 import { getDomainVisual } from './lib/domainVisual';
 import { setting } from './lib/appConfig';
 import { bySequence, toDataField, toDataFields, type DataField } from './lib/schema';
+import { csvSources, CSV_TEMPLATE, CSV_TEMPLATE_FILE_NAME } from './lib/csvImport';
+import CsvImportPanel from './components/CsvImportPanel';
 import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from './lib/exportData';
 
 // =========================================================================
@@ -502,25 +505,25 @@ function ContractsView({
   });
 
   return (
-    <main className="flex-1 h-full overflow-hidden bg-[#F6F2EA] p-2 flex flex-col">
+    <main className="flex-1 h-full overflow-hidden bg-[#F1F0EC] p-2 flex flex-col">
       {/* Top Header */}
-      <div className="h-10 min-h-10 border border-[#E5DFD3] rounded-t-lg bg-white px-3 flex items-center justify-between shadow-2xs">
+      <div className="h-10 min-h-10 border border-[#D3D2CE] rounded-t-xs bg-white px-3 flex items-center justify-between ">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs text-[#29251D] hover:border-[#29251D] font-medium focus-techm transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs text-[#0B0B0C] hover:border-[#0B0B0C] font-medium focus-techm transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Canvas</span>
           </button>
-          <div className="h-4 w-[1px] bg-[#E5DFD3]" />
+          <div className="h-4 w-[1px] bg-[#D3D2CE]" />
           <div className="flex items-center gap-1.5">
             <FileSpreadsheet className="w-4 h-4 text-[#E31837]" />
-            <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
+            <h2 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               Enterprise Schema Contracts Repository
             </h2>
           </div>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-[#247153] border border-emerald-200">
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-xs bg-emerald-50 text-[#247153] border border-emerald-200">
             5 Verified Contracts
           </span>
         </div>
@@ -528,7 +531,7 @@ function ContractsView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => showToast('Exported all 5 schema contracts as ZIP')}
-            className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] font-medium flex items-center gap-1.5 shadow-2xs"
+            className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#0B0B0C] hover:border-[#0B0B0C] font-medium flex items-center gap-1.5 "
           >
             <Download className="w-3 h-3" />
             <span>Export Catalog</span>
@@ -539,19 +542,19 @@ function ContractsView({
       {/* 2-Column Body */}
       <div className="flex-1 grid grid-cols-12 gap-2 pt-2 overflow-hidden">
         {/* Left Column: Contracts List (Span 5) */}
-        <section className="col-span-5 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden">
-          <div className="p-2.5 border-b border-[#E5DFD3] space-y-2 bg-[#F6F2EA]/40">
-            <div className="flex items-center bg-white border border-[#E5DFD3] rounded px-2 py-1 text-xs">
-              <Search className="w-3.5 h-3.5 text-[#4D4D4F] mr-1.5 shrink-0" />
+        <section className="col-span-5 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden">
+          <div className="p-2.5 border-b border-[#D3D2CE] space-y-2 bg-[#F1F0EC]/40">
+            <div className="flex items-center bg-white border border-[#D3D2CE] rounded-xs px-2 py-1 text-xs">
+              <Search className="w-3.5 h-3.5 text-[#626263] mr-1.5 shrink-0" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Search contracts by name, standard, or code..."
-                className="bg-transparent text-xs text-[#29251D] w-full outline-none"
+                className="bg-transparent text-xs text-[#0B0B0C] w-full outline-none"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} aria-label="Clear contract search" className="text-[#4D4D4F]">
+                <button onClick={() => setSearchTerm('')} aria-label="Clear contract search" className="text-[#626263]">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -562,10 +565,10 @@ function ContractsView({
                 <button
                   key={dom}
                   onClick={() => setFilterDomain(dom)}
-                  className={`text-[11px] px-2 py-0.5 rounded border transition-colors capitalize ${
+                  className={`text-[11px] px-2 py-0.5 rounded-xs border transition-colors capitalize ${
                     filterDomain === dom
-                      ? 'bg-[#29251D] text-white border-[#29251D]'
-                      : 'bg-white border-[#E5DFD3] text-[#4D4D4F] hover:border-[#29251D]'
+                      ? 'bg-[#0B0B0C] text-white border-[#0B0B0C]'
+                      : 'bg-white border-[#D3D2CE] text-[#626263] hover:border-[#0B0B0C]'
                   }`}
                 >
                   {dom}
@@ -581,16 +584,16 @@ function ContractsView({
                 <div
                   key={c.id}
                   onClick={() => setSelectedId(c.id)}
-                  className={`p-2.5 rounded-md border text-left cursor-pointer transition-all ${
+                  className={`p-2.5 rounded-xs border text-left cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-[#F6F2EA] border-[#29251D] shadow-xs'
-                      : 'bg-white border-[#E5DFD3] hover:border-[#4D4D4F]'
+                      ? 'bg-[#F1F0EC] border-[#0B0B0C] '
+                      : 'bg-white border-[#D3D2CE] hover:border-[#626263]'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-mono font-bold text-[#E31837]">{c.code}</span>
+                    <span className="text-[10px] font-mono font-medium text-[#E31837]">{c.code}</span>
                     <span
-                      className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border ${
+                      className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-xs border ${
                         c.status === 'ACTIVE'
                           ? 'bg-emerald-50 text-[#247153] border-emerald-200'
                           : c.status === 'CERTIFIED'
@@ -601,8 +604,8 @@ function ContractsView({
                       {c.status}
                     </span>
                   </div>
-                  <h3 className="text-xs font-semibold text-[#29251D] leading-tight mb-1">{c.title}</h3>
-                  <div className="flex items-center justify-between text-[11px] text-[#4D4D4F]">
+                  <h3 className="text-xs font-semibold text-[#0B0B0C] leading-tight mb-1">{c.title}</h3>
+                  <div className="flex items-center justify-between text-[11px] text-[#626263]">
                     <span className="truncate">{c.standard}</span>
                     <span className="font-mono shrink-0">{c.fieldCount} fields</span>
                   </div>
@@ -613,18 +616,18 @@ function ContractsView({
         </section>
 
         {/* Right Column: Contract Inspector & Code Preview (Span 7) */}
-        <section className="col-span-7 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden">
+        <section className="col-span-7 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden">
           {/* Inspector Header */}
-          <div className="p-3 border-b border-[#E5DFD3] bg-[#F6F2EA]/40 flex items-start justify-between">
+          <div className="p-3 border-b border-[#D3D2CE] bg-[#F1F0EC]/40 flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold text-[#29251D]">{selectedContract.title}</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-[#E5DFD3] text-[#4D4D4F]">
+                <span className="text-xs font-semibold text-[#0B0B0C]">{selectedContract.title}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-xs bg-white border border-[#D3D2CE] text-[#626263]">
                   {selectedContract.version}
                 </span>
               </div>
-              <p className="text-xs text-[#4D4D4F] leading-tight mb-1.5">{selectedContract.description}</p>
-              <div className="flex items-center gap-3 text-[11px] text-[#4D4D4F] font-mono">
+              <p className="text-xs text-[#626263] leading-tight mb-1.5">{selectedContract.description}</p>
+              <div className="flex items-center gap-3 text-[11px] text-[#626263] font-mono">
                 <span>Standard: <strong>{selectedContract.standard}</strong></span>
                 <span>Checksum: <code>{selectedContract.checksum}</code></span>
               </div>
@@ -632,7 +635,7 @@ function ContractsView({
 
             <button
               onClick={() => onLoadContract(selectedContract)}
-              className="px-3 py-1.5 bg-[#E31837] hover:bg-[#5F0229] text-white rounded-md font-medium text-xs flex items-center gap-1.5 shadow-xs focus-techm transition-colors shrink-0"
+              className="px-3 py-1.5 bg-[#E31837] hover:bg-[#141416] text-white rounded-xs font-medium text-xs flex items-center gap-1.5 focus-techm transition-colors shrink-0"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
               <span>Load into Canvas</span>
@@ -640,28 +643,28 @@ function ContractsView({
           </div>
 
           {/* Sub-view Tab Switcher */}
-          <div className="h-9 min-h-9 px-3 border-b border-[#E5DFD3] flex items-center justify-between bg-white">
-            <div className="flex items-center gap-1 bg-[#F6F2EA] p-0.5 rounded border border-[#E5DFD3]">
+          <div className="h-9 min-h-9 px-3 border-b border-[#D3D2CE] flex items-center justify-between bg-white">
+            <div className="flex items-center gap-1 bg-[#F1F0EC] p-0.5 rounded-xs border border-[#D3D2CE]">
               <button
                 onClick={() => setContractTab('fields')}
-                className={`px-2.5 py-0.5 text-xs rounded transition-colors ${
-                  contractTab === 'fields' ? 'bg-white text-[#29251D] font-semibold shadow-2xs' : 'text-[#4D4D4F]'
+                className={`px-2.5 py-0.5 text-xs rounded-xs transition-colors ${
+                  contractTab === 'fields' ? 'bg-white text-[#0B0B0C] font-semibold ' : 'text-[#626263]'
                 }`}
               >
                 Field Specifications ({selectedContract.fields.length})
               </button>
               <button
                 onClick={() => setContractTab('pydantic')}
-                className={`px-2.5 py-0.5 text-xs rounded transition-colors ${
-                  contractTab === 'pydantic' ? 'bg-white text-[#29251D] font-semibold shadow-2xs' : 'text-[#4D4D4F]'
+                className={`px-2.5 py-0.5 text-xs rounded-xs transition-colors ${
+                  contractTab === 'pydantic' ? 'bg-white text-[#0B0B0C] font-semibold ' : 'text-[#626263]'
                 }`}
               >
                 Pydantic v2 Model
               </button>
               <button
                 onClick={() => setContractTab('json')}
-                className={`px-2.5 py-0.5 text-xs rounded transition-colors ${
-                  contractTab === 'json' ? 'bg-white text-[#29251D] font-semibold shadow-2xs' : 'text-[#4D4D4F]'
+                className={`px-2.5 py-0.5 text-xs rounded-xs transition-colors ${
+                  contractTab === 'json' ? 'bg-white text-[#0B0B0C] font-semibold ' : 'text-[#626263]'
                 }`}
               >
                 JSON Schema Spec
@@ -670,7 +673,7 @@ function ContractsView({
 
             <button
               onClick={() => showToast(`Copied ${selectedContract.code} schema to clipboard`)}
-              className="text-xs text-[#4D4D4F] hover:text-[#29251D] flex items-center gap-1"
+              className="text-xs text-[#626263] hover:text-[#0B0B0C] flex items-center gap-1"
             >
               <Copy className="w-3 h-3" />
               <span>Copy Schema</span>
@@ -680,9 +683,9 @@ function ContractsView({
           {/* Inspector Body Content */}
           <div className="flex-1 overflow-y-auto p-3 text-xs">
             {contractTab === 'fields' && (
-              <div className="border border-[#E5DFD3] rounded-md overflow-hidden bg-white">
+              <div className="border border-[#D3D2CE] rounded-xs overflow-hidden bg-white">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] text-[11px] font-semibold">
+                  <thead className="bg-[#F1F0EC] text-[#626263] border-b border-[#D3D2CE] text-[11px] font-semibold">
                     <tr>
                       <th className="p-2">Field Name</th>
                       <th className="p-2">Physical Type</th>
@@ -690,20 +693,20 @@ function ContractsView({
                       <th className="p-2">Sensitivity</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5DFD3] font-mono text-[11px]">
+                  <tbody className="divide-y divide-[#D3D2CE] font-mono text-[11px]">
                     {selectedContract.fields.map(f => (
-                      <tr key={f.name} className="hover:bg-[#F6F2EA]/40">
-                        <td className="p-2 font-semibold text-[#29251D]">{f.name}</td>
-                        <td className="p-2 text-[#4D4D4F]">{f.type}</td>
-                        <td className="p-2 text-[#29251D]">{f.constraints}</td>
+                      <tr key={f.name} className="hover:bg-[#F1F0EC]/40">
+                        <td className="p-2 font-semibold text-[#0B0B0C]">{f.name}</td>
+                        <td className="p-2 text-[#626263]">{f.type}</td>
+                        <td className="p-2 text-[#0B0B0C]">{f.constraints}</td>
                         <td className="p-2">
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-sans ${
+                            className={`px-1.5 py-0.5 rounded-xs text-[10px] font-sans ${
                               f.sensitivity.includes('PII')
                                 ? 'bg-red-50 text-[#9C1936] border border-red-200'
                                 : f.sensitivity.includes('Financial')
                                 ? 'bg-amber-50 text-[#8A5200] border border-amber-200'
-                                : 'bg-gray-50 text-[#4D4D4F] border border-gray-200'
+                                : 'bg-gray-50 text-[#626263] border border-gray-200'
                             }`}
                           >
                             {f.sensitivity}
@@ -717,13 +720,13 @@ function ContractsView({
             )}
 
             {contractTab === 'pydantic' && (
-              <pre className="p-3 bg-[#29251D] text-emerald-400 rounded-md font-mono text-xs leading-relaxed overflow-x-auto">
+              <pre className="p-3 bg-[#0B0B0C] text-emerald-400 rounded-xs font-mono text-xs leading-relaxed overflow-x-auto">
                 {selectedContract.pydanticCode}
               </pre>
             )}
 
             {contractTab === 'json' && (
-              <pre className="p-3 bg-[#29251D] text-blue-300 rounded-md font-mono text-xs leading-relaxed overflow-x-auto">
+              <pre className="p-3 bg-[#0B0B0C] text-blue-300 rounded-xs font-mono text-xs leading-relaxed overflow-x-auto">
                 {JSON.stringify(
                   {
                     $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -772,25 +775,25 @@ function DkpView({
   };
 
   return (
-    <main className="flex-1 h-full overflow-hidden bg-[#F6F2EA] p-2 flex flex-col">
+    <main className="flex-1 h-full overflow-hidden bg-[#F1F0EC] p-2 flex flex-col">
       {/* Top Header */}
-      <div className="h-10 min-h-10 border border-[#E5DFD3] rounded-t-lg bg-white px-3 flex items-center justify-between shadow-2xs">
+      <div className="h-10 min-h-10 border border-[#D3D2CE] rounded-t-xs bg-white px-3 flex items-center justify-between ">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs text-[#29251D] hover:border-[#29251D] font-medium focus-techm transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs text-[#0B0B0C] hover:border-[#0B0B0C] font-medium focus-techm transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Canvas</span>
           </button>
-          <div className="h-4 w-[1px] bg-[#E5DFD3]" />
+          <div className="h-4 w-[1px] bg-[#D3D2CE]" />
           <div className="flex items-center gap-1.5">
             <Network className="w-4 h-4 text-[#E31837]" />
-            <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
+            <h2 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               Domain Knowledge Packages (DKP) & SID Ontology Engine
             </h2>
           </div>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-50 text-[#185F8D] border border-blue-200">
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-xs bg-blue-50 text-[#185F8D] border border-blue-200">
             Vector Index: 15,560 Triples
           </span>
         </div>
@@ -799,7 +802,7 @@ function DkpView({
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] font-medium flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+            className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#0B0B0C] hover:border-[#0B0B0C] font-medium flex items-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Syncing Git/SQLite...' : 'Sync Upstream'}</span>
@@ -810,9 +813,9 @@ function DkpView({
       {/* 2-Column Body */}
       <div className="flex-1 grid grid-cols-12 gap-2 pt-2 overflow-hidden">
         {/* Left Column: DKP Packages List (Span 4) */}
-        <section className="col-span-4 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden">
-          <div className="p-2.5 border-b border-[#E5DFD3] bg-[#F6F2EA]/40">
-            <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+        <section className="col-span-4 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden">
+          <div className="p-2.5 border-b border-[#D3D2CE] bg-[#F1F0EC]/40">
+            <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
               Installed Knowledge Packages
             </span>
           </div>
@@ -824,28 +827,28 @@ function DkpView({
                 <div
                   key={pkg.id}
                   onClick={() => setSelectedPkgId(pkg.id)}
-                  className={`p-3 rounded-md border text-left cursor-pointer transition-all ${
+                  className={`p-3 rounded-xs border text-left cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-[#F6F2EA] border-[#29251D] shadow-xs'
-                      : 'bg-white border-[#E5DFD3] hover:border-[#4D4D4F]'
+                      ? 'bg-[#F1F0EC] border-[#0B0B0C] '
+                      : 'bg-white border-[#D3D2CE] hover:border-[#626263]'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-bold text-[#29251D]">{pkg.name}</span>
+                    <span className="text-[11px] font-semibold text-[#0B0B0C]">{pkg.name}</span>
                     <span
-                      className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border ${
+                      className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-xs border ${
                         pkg.status === 'SYNCED'
                           ? 'bg-emerald-50 text-[#247153] border-emerald-200'
                           : pkg.status === 'MOUNTED'
                           ? 'bg-blue-50 text-[#185F8D] border-blue-200'
-                          : 'bg-gray-50 text-[#4D4D4F] border-gray-200'
+                          : 'bg-gray-50 text-[#626263] border-gray-200'
                       }`}
                     >
                       {pkg.status}
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#4D4D4F] line-clamp-2 leading-tight mb-2">{pkg.description}</p>
-                  <div className="flex items-center justify-between text-[10px] text-[#4D4D4F] font-mono pt-1 border-t border-[#E5DFD3]">
+                  <p className="text-[11px] text-[#626263] line-clamp-2 leading-tight mb-2">{pkg.description}</p>
+                  <div className="flex items-center justify-between text-[10px] text-[#626263] font-mono pt-1 border-t border-[#D3D2CE]">
                     <span>{pkg.entitiesCount.toLocaleString()} Entities</span>
                     <span>{pkg.triplesCount.toLocaleString()} Triples</span>
                     <span>Sync: {pkg.lastSync}</span>
@@ -857,21 +860,21 @@ function DkpView({
         </section>
 
         {/* Right Column: Interactive Ontology Graph & Hierarchy Inspector (Span 8) */}
-        <section className="col-span-8 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden">
-          <div className="p-3 border-b border-[#E5DFD3] bg-[#F6F2EA]/40 flex items-center justify-between">
+        <section className="col-span-8 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden">
+          <div className="p-3 border-b border-[#D3D2CE] bg-[#F1F0EC]/40 flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <h3 className="text-xs font-bold text-[#29251D]">{selectedPkg.name}</h3>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-white border border-[#E5DFD3] rounded text-[#4D4D4F]">
+                <h3 className="text-xs font-semibold text-[#0B0B0C]">{selectedPkg.name}</h3>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-white border border-[#D3D2CE] rounded-xs text-[#626263]">
                   {selectedPkg.version}
                 </span>
               </div>
-              <p className="text-[11px] text-[#4D4D4F]">{selectedPkg.description}</p>
+              <p className="text-[11px] text-[#626263]">{selectedPkg.description}</p>
             </div>
 
             <button
               onClick={() => onMount(selectedPkg.name)}
-              className="px-3 py-1.5 bg-[#E31837] hover:bg-[#5F0229] text-white rounded-md font-medium text-xs flex items-center gap-1.5 shadow-xs focus-techm transition-colors shrink-0"
+              className="px-3 py-1.5 bg-[#E31837] hover:bg-[#141416] text-white rounded-xs font-medium text-xs flex items-center gap-1.5 focus-techm transition-colors shrink-0"
             >
               <Network className="w-3.5 h-3.5" />
               <span>Mount to Stage 1 Pipeline</span>
@@ -881,24 +884,24 @@ function DkpView({
           {/* Interactive Graph Node Explorer */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             <div>
-              <div className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider mb-2">
+              <div className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] mb-2 font-mono">
                 Ontology Entity Relational Graph
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 {selectedPkg.ontologyNodes.map(node => (
-                  <div key={node.name} className="p-2.5 rounded-md border border-[#E5DFD3] bg-[#F6F2EA]/30">
+                  <div key={node.name} className="p-2.5 rounded-xs border border-[#D3D2CE] bg-[#F1F0EC]/30">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold font-mono text-[#29251D]">{node.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-[#E5DFD3] text-[#4D4D4F]">
+                      <span className="text-xs font-medium font-mono text-[#0B0B0C]">{node.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-xs bg-white border border-[#D3D2CE] text-[#626263]">
                         {node.category}
                       </span>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] font-semibold text-[#4D4D4F] uppercase">Graph Predicates:</span>
+                      <span className="text-[10px] font-semibold text-[#626263] uppercase">Graph Predicates:</span>
                       {node.relationships.map(rel => (
-                        <div key={rel} className="text-[11px] font-mono text-[#185F8D] bg-white px-2 py-0.5 rounded border border-[#E5DFD3]">
+                        <div key={rel} className="text-[11px] font-mono text-[#185F8D] bg-white px-2 py-0.5 rounded-xs border border-[#D3D2CE]">
                           ──&gt; {rel}
                         </div>
                       ))}
@@ -909,12 +912,12 @@ function DkpView({
             </div>
 
             {/* RAG Vector Embedding Index Stats */}
-            <div className="p-3 rounded-md border border-[#E5DFD3] bg-white space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-[#29251D]">
+            <div className="p-3 rounded-xs border border-[#D3D2CE] bg-white space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-[#0B0B0C]">
                 <span>RAG Vector Similarity Sub-Schema Pruning</span>
                 <span className="text-[#247153] font-mono">Cosine Threshold: 0.84</span>
               </div>
-              <p className="text-[11px] text-[#4D4D4F] leading-relaxed">
+              <p className="text-[11px] text-[#626263] leading-relaxed">
                 When business input prompts are submitted, ModelOS queries this package's vector embeddings (FAISS/SQLite) to extract only the minimum sub-schema subtree, pruning 95% of irrelevant SID entities prior to LLM schema parameterization.
               </p>
             </div>
@@ -951,26 +954,26 @@ function QualityGatesView({
   const flaggedCount = rules.filter(r => r.status === 'FLAGGED' && r.enabled).length;
 
   return (
-    <main className="flex-1 h-full overflow-hidden bg-[#F6F2EA] p-2 flex flex-col">
+    <main className="flex-1 h-full overflow-hidden bg-[#F1F0EC] p-2 flex flex-col">
       {/* Top Header */}
-      <div className="h-10 min-h-10 border border-[#E5DFD3] rounded-t-lg bg-white px-3 flex items-center justify-between shadow-2xs">
+      <div className="h-10 min-h-10 border border-[#D3D2CE] rounded-t-xs bg-white px-3 flex items-center justify-between ">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs text-[#29251D] hover:border-[#29251D] font-medium focus-techm transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs text-[#0B0B0C] hover:border-[#0B0B0C] font-medium focus-techm transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Canvas</span>
           </button>
-          <div className="h-4 w-[1px] bg-[#E5DFD3]" />
+          <div className="h-4 w-[1px] bg-[#D3D2CE]" />
           <div className="flex items-center gap-1.5">
             <Shield className="w-4 h-4 text-[#E31837]" />
-            <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
+            <h2 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               Pandera AST Quality Gates & Differential Privacy Center
             </h2>
           </div>
           <span
-            className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+            className={`text-[11px] font-mono px-2 py-0.5 rounded-xs border ${
               flaggedCount > 0
                 ? 'bg-amber-50 text-[#8A5200] border-amber-200'
                 : 'bg-emerald-50 text-[#247153] border-emerald-200'
@@ -987,14 +990,14 @@ function QualityGatesView({
                 setRules(prev => prev.map(r => (r.id === 'r4' ? { ...r, status: 'PASS', message: 'Auto-resolved via session synthetic link generator' } : r)));
                 onResolveWarnings();
               }}
-              className="px-2.5 py-1 text-xs bg-[#8A5200] text-white rounded font-medium shadow-2xs hover:bg-[#6c4000]"
+              className="px-2.5 py-1 text-xs bg-[#8A5200] text-white rounded-xs font-medium hover:bg-[#6c4000]"
             >
               Auto-Resolve Flagged Rule
             </button>
           )}
           <button
             onClick={() => showToast('Re-evaluated all 14 Pandera AST Quality Gates: 100% compliant.')}
-            className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] font-medium flex items-center gap-1.5 shadow-2xs"
+            className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#0B0B0C] hover:border-[#0B0B0C] font-medium flex items-center gap-1.5 "
           >
             <RefreshCw className="w-3 h-3" />
             <span>Run QA Suite</span>
@@ -1005,19 +1008,19 @@ function QualityGatesView({
       {/* 2-Column Body */}
       <div className="flex-1 grid grid-cols-12 gap-2 pt-2 overflow-hidden">
         {/* Left Column: Rules Matrix Table (Span 8) */}
-        <section className="col-span-8 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden">
-          <div className="p-2.5 border-b border-[#E5DFD3] bg-[#F6F2EA]/40 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+        <section className="col-span-8 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden">
+          <div className="p-2.5 border-b border-[#D3D2CE] bg-[#F1F0EC]/40 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
               Active AST Constraint Predicates
             </span>
-            <span className="text-[10px] text-[#4D4D4F] font-mono">
+            <span className="text-[10px] text-[#626263] font-mono">
               {rules.filter(r => r.enabled).length} of {rules.length} enabled
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] text-[11px] font-semibold sticky top-0">
+              <thead className="bg-[#F1F0EC] text-[#626263] border-b border-[#D3D2CE] text-[11px] font-semibold sticky top-0">
                 <tr>
                   <th className="p-2 w-12 text-center">Gate</th>
                   <th className="p-2">Rule Identifier</th>
@@ -1026,23 +1029,23 @@ function QualityGatesView({
                   <th className="p-2">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E5DFD3] font-mono text-[11px]">
+              <tbody className="divide-y divide-[#D3D2CE] font-mono text-[11px]">
                 {rules.map(r => (
-                  <tr key={r.id} className="hover:bg-[#F6F2EA]/40">
+                  <tr key={r.id} className="hover:bg-[#F1F0EC]/40">
                     <td className="p-2 text-center">
                       <input
                         type="checkbox"
                         checked={r.enabled}
                         onChange={() => toggleRule(r.id)}
-                        className="rounded border-[#E5DFD3] text-[#E31837] focus:ring-[#0A0838]"
+                        className="rounded-xs border-[#D3D2CE] text-[#E31837] focus:ring-[#E31837]"
                       />
                     </td>
-                    <td className="p-2 font-semibold text-[#29251D]">{r.name}</td>
-                    <td className="p-2 text-[#4D4D4F]">{r.field}</td>
+                    <td className="p-2 font-semibold text-[#0B0B0C]">{r.name}</td>
+                    <td className="p-2 text-[#626263]">{r.field}</td>
                     <td className="p-2 text-[#185F8D] font-mono text-[10px] truncate max-w-xs">{r.expression}</td>
                     <td className="p-2">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold ${
+                        className={`px-1.5 py-0.5 rounded-xs text-[10px] font-sans font-semibold ${
                           r.status === 'PASS'
                             ? 'bg-emerald-50 text-[#247153] border border-emerald-200'
                             : 'bg-amber-50 text-[#8A5200] border border-amber-200'
@@ -1059,12 +1062,12 @@ function QualityGatesView({
         </section>
 
         {/* Right Column: Privacy Budget & AST Evaluator (Span 4) */}
-        <section className="col-span-4 h-full flex flex-col bg-white border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden p-3 space-y-3.5">
+        <section className="col-span-4 h-full flex flex-col bg-white border border-[#D3D2CE] rounded-xs overflow-hidden p-3 space-y-3.5">
           {/* Privacy Budget */}
           <div>
             <div className="flex items-center justify-between mb-1 text-xs">
-              <span className="font-semibold text-[#29251D]">Differential Privacy (DP) Budget</span>
-              <span className="font-mono font-bold text-[#E31837]">ε = {dpEpsilon}</span>
+              <span className="font-semibold text-[#0B0B0C]">Differential Privacy (DP) Budget</span>
+              <span className="font-mono font-medium text-[#E31837]">ε = {dpEpsilon}</span>
             </div>
             <input
               type="range"
@@ -1075,48 +1078,48 @@ function QualityGatesView({
               onChange={e => setDpEpsilon(parseFloat(e.target.value))}
               className="w-full accent-[#E31837]"
             />
-            <div className="flex justify-between text-[10px] text-[#4D4D4F] mt-1 font-mono">
+            <div className="flex justify-between text-[10px] text-[#626263] mt-1 font-mono">
               <span>High Privacy (ε=0.1)</span>
               <span>High Fidelity (ε=2.0)</span>
             </div>
           </div>
 
           {/* Statistical Drift Metrics */}
-          <div className="border border-[#E5DFD3] rounded-md p-2.5 bg-[#F6F2EA]/40 space-y-2">
-            <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider block">
+          <div className="border border-[#D3D2CE] rounded-xs p-2.5 bg-[#F1F0EC]/40 space-y-2">
+            <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] block font-mono">
               Statistical Fidelity Metrics
             </span>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2 bg-white rounded border border-[#E5DFD3]">
-                <div className="text-[10px] text-[#4D4D4F]">KS-Test Drift</div>
-                <div className="font-bold text-[#247153] font-mono">0.012 (Pass)</div>
+              <div className="p-2 bg-white rounded-xs border border-[#D3D2CE]">
+                <div className="text-[10px] text-[#626263]">KS-Test Drift</div>
+                <div className="font-medium text-[#247153] font-mono">0.012 (Pass)</div>
               </div>
-              <div className="p-2 bg-white rounded border border-[#E5DFD3]">
-                <div className="text-[10px] text-[#4D4D4F]">Mutual Info</div>
-                <div className="font-bold text-[#247153] font-mono">0.94 (Pass)</div>
+              <div className="p-2 bg-white rounded-xs border border-[#D3D2CE]">
+                <div className="text-[10px] text-[#626263]">Mutual Info</div>
+                <div className="font-medium text-[#247153] font-mono">0.94 (Pass)</div>
               </div>
             </div>
           </div>
 
           {/* Interactive Live AST Sandbox */}
-          <div className="border border-[#E5DFD3] rounded-md p-2.5 bg-white space-y-2 flex-1 flex flex-col">
-            <span className="text-[11px] font-semibold text-[#29251D] uppercase tracking-wider">
+          <div className="border border-[#D3D2CE] rounded-xs p-2.5 bg-white space-y-2 flex-1 flex flex-col">
+            <span className="text-[11px] font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               Live AST Predicate Sandbox
             </span>
 
             <div className="space-y-1.5 flex-1">
               <div>
-                <label className="text-[10px] text-[#4D4D4F]">Predicate Expression:</label>
+                <label className="text-[10px] text-[#626263]">Predicate Expression:</label>
                 <input
                   type="text"
                   value={testingExpr}
                   onChange={e => setTestingExpr(e.target.value)}
-                  className="w-full p-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono"
+                  className="w-full p-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs font-mono"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] text-[#4D4D4F]">Sample Test Value:</label>
+                <label className="text-[10px] text-[#626263]">Sample Test Value:</label>
                 <input
                   type="text"
                   value={testValue}
@@ -1130,11 +1133,11 @@ function QualityGatesView({
                       setTestResult(`FAIL: Value ${val} breaches constraint`);
                     }
                   }}
-                  className="w-full p-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono"
+                  className="w-full p-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs font-mono"
                 />
               </div>
 
-              <div className="p-2 rounded bg-[#29251D] text-emerald-400 font-mono text-[10px] mt-2">
+              <div className="p-2 rounded-xs bg-[#0B0B0C] text-emerald-400 font-mono text-[10px] mt-2">
                 {testResult}
               </div>
             </div>
@@ -1163,25 +1166,25 @@ function AuditLogsView({
   });
 
   return (
-    <main className="flex-1 h-full overflow-hidden bg-[#F6F2EA] p-2 flex flex-col">
+    <main className="flex-1 h-full overflow-hidden bg-[#F1F0EC] p-2 flex flex-col">
       {/* Top Header */}
-      <div className="h-10 min-h-10 border border-[#E5DFD3] rounded-t-lg bg-white px-3 flex items-center justify-between shadow-2xs">
+      <div className="h-10 min-h-10 border border-[#D3D2CE] rounded-t-xs bg-white px-3 flex items-center justify-between ">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs text-[#29251D] hover:border-[#29251D] font-medium focus-techm transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs text-[#0B0B0C] hover:border-[#0B0B0C] font-medium focus-techm transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Canvas</span>
           </button>
-          <div className="h-4 w-[1px] bg-[#E5DFD3]" />
+          <div className="h-4 w-[1px] bg-[#D3D2CE]" />
           <div className="flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-[#E31837]" />
-            <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
+            <h2 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               Compliance & Synthetic Generation Audit Ledger
             </h2>
           </div>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-[#247153] border border-emerald-200">
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-xs bg-emerald-50 text-[#247153] border border-emerald-200">
             Immutable SHA-256 Ledger
           </span>
         </div>
@@ -1189,7 +1192,7 @@ function AuditLogsView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => showToast('Exported audit history report as CSV')}
-            className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] font-medium flex items-center gap-1.5 shadow-2xs"
+            className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#0B0B0C] hover:border-[#0B0B0C] font-medium flex items-center gap-1.5 "
           >
             <Download className="w-3 h-3" />
             <span>Export Audit Log</span>
@@ -1198,24 +1201,24 @@ function AuditLogsView({
       </div>
 
       {/* Main Ledger Table */}
-      <div className="flex-1 bg-white border border-[#E5DFD3] rounded-b-lg shadow-2xs overflow-hidden flex flex-col mt-2">
-        <div className="p-2.5 border-b border-[#E5DFD3] bg-[#F6F2EA]/40 flex items-center justify-between">
-          <div className="flex items-center bg-white border border-[#E5DFD3] rounded px-2 py-1 text-xs w-72">
-            <Search className="w-3.5 h-3.5 text-[#4D4D4F] mr-1.5 shrink-0" />
+      <div className="flex-1 bg-white border border-[#D3D2CE] rounded-b-xs overflow-hidden flex flex-col mt-2">
+        <div className="p-2.5 border-b border-[#D3D2CE] bg-[#F1F0EC]/40 flex items-center justify-between">
+          <div className="flex items-center bg-white border border-[#D3D2CE] rounded-xs px-2 py-1 text-xs w-72">
+            <Search className="w-3.5 h-3.5 text-[#626263] mr-1.5 shrink-0" />
             <input
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Search audit runs by ID, operator, or domain..."
-              className="bg-transparent text-xs text-[#29251D] w-full outline-none"
+              className="bg-transparent text-xs text-[#0B0B0C] w-full outline-none"
             />
           </div>
-          <span className="text-xs text-[#4D4D4F]">All runs cryptographically sealed and immutable.</span>
+          <span className="text-xs text-[#626263]">All runs cryptographically sealed and immutable.</span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-[#F6F2EA] text-[#4D4D4F] border-b border-[#E5DFD3] text-[11px] font-semibold sticky top-0">
+            <thead className="bg-[#F1F0EC] text-[#626263] border-b border-[#D3D2CE] text-[11px] font-semibold sticky top-0">
               <tr>
                 <th className="p-2">Execution Run ID</th>
                 <th className="p-2">Timestamp (UTC)</th>
@@ -1228,23 +1231,23 @@ function AuditLogsView({
                 <th className="p-2">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5DFD3] font-mono text-[11px]">
+            <tbody className="divide-y divide-[#D3D2CE] font-mono text-[11px]">
               {filtered.map(r => (
                 <tr
                   key={r.runId}
                   onClick={() => setSelectedRecord(r)}
-                  className="hover:bg-[#F6F2EA] cursor-pointer transition-colors"
+                  className="hover:bg-[#F1F0EC] cursor-pointer transition-colors"
                 >
-                  <td className="p-2 font-bold text-[#E31837]">{r.runId}</td>
-                  <td className="p-2 text-[#4D4D4F]">{r.timestamp}</td>
-                  <td className="p-2 text-[#29251D] font-sans">{r.operator}</td>
-                  <td className="p-2 text-[#29251D] font-sans">{r.domain}</td>
-                  <td className="p-2 text-[#4D4D4F]">{r.engine}</td>
-                  <td className="p-2 font-bold text-[#29251D]">{r.recordsCount.toLocaleString()}</td>
+                  <td className="p-2 font-semibold text-[#E31837]">{r.runId}</td>
+                  <td className="p-2 text-[#626263]">{r.timestamp}</td>
+                  <td className="p-2 text-[#0B0B0C] font-sans">{r.operator}</td>
+                  <td className="p-2 text-[#0B0B0C] font-sans">{r.domain}</td>
+                  <td className="p-2 text-[#626263]">{r.engine}</td>
+                  <td className="p-2 font-semibold text-[#0B0B0C]">{r.recordsCount.toLocaleString()}</td>
                   <td className="p-2 text-[#247153]">ε={r.dpEpsilon}</td>
-                  <td className="p-2 text-[#4D4D4F] truncate max-w-[140px]">{r.hash}</td>
+                  <td className="p-2 text-[#626263] truncate max-w-[140px]">{r.hash}</td>
                   <td className="p-2">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold bg-emerald-50 text-[#247153] border border-emerald-200">
+                    <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-sans font-semibold bg-emerald-50 text-[#247153] border border-emerald-200">
                       {r.status}
                     </span>
                   </td>
@@ -1257,22 +1260,22 @@ function AuditLogsView({
 
       {/* Record Verification Modal */}
       {selectedRecord && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
-          <div className="bg-white border border-[#E5DFD3] rounded-lg shadow-xl w-full max-w-lg p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-2">
+        <div className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
+          <div className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] w-full max-w-lg p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-2">
               <div className="flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-[#247153]" />
-                <h3 className="text-xs font-bold text-[#29251D]">
+                <h3 className="text-xs font-semibold text-[#0B0B0C]">
                   Cryptographic Verification Certificate: {selectedRecord.runId}
                 </h3>
               </div>
-              <button onClick={() => setSelectedRecord(null)} aria-label="Close certificate modal" className="text-[#4D4D4F] hover:text-[#29251D]">
+              <button onClick={() => setSelectedRecord(null)} aria-label="Close certificate modal" className="text-[#626263] hover:text-[#0B0B0C]">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
             <div className="space-y-2 text-xs font-mono">
-              <div className="p-2 bg-[#F6F2EA] rounded border border-[#E5DFD3] space-y-1">
+              <div className="p-2 bg-[#F1F0EC] rounded-xs border border-[#D3D2CE] space-y-1">
                 <div>Run Identifier: <strong>{selectedRecord.runId}</strong></div>
                 <div>Operator: <strong>{selectedRecord.operator}</strong></div>
                 <div>Volume: <strong>{selectedRecord.recordsCount.toLocaleString()} rows</strong></div>
@@ -1282,22 +1285,22 @@ function AuditLogsView({
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#4D4D4F] block mb-1">SHA-256 Provenance Digest:</label>
-                <div className="p-2 bg-[#29251D] text-emerald-400 rounded text-[11px] break-all">
+                <label className="text-[10px] uppercase text-[#626263] block mb-1">SHA-256 Provenance Digest:</label>
+                <div className="p-2 bg-[#0B0B0C] text-emerald-400 rounded-xs text-[11px] break-all">
                   {selectedRecord.hash}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-[11px] font-sans text-[#247153] bg-emerald-50 p-2 rounded border border-emerald-200">
+              <div className="flex items-center gap-2 text-[11px] font-sans text-[#247153] bg-emerald-50 p-2 rounded-xs border border-emerald-200">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>Cryptographic verification verified against Tech Mahindra ModelOS audit chain. Compliant with GDPR Article 25 & HIPAA Safe Harbor.</span>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#E5DFD3]">
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#D3D2CE]">
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="px-3 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#4D4D4F]"
+                className="px-3 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#626263]"
               >
                 Close
               </button>
@@ -1306,7 +1309,7 @@ function AuditLogsView({
                   showToast('Downloaded verification certificate JSON');
                   setSelectedRecord(null);
                 }}
-                className="px-3 py-1 text-xs bg-[#E31837] text-white rounded font-medium shadow-xs"
+                className="px-3 py-1 text-xs bg-[#E31837] text-white rounded-xs font-medium "
               >
                 Download Certificate
               </button>
@@ -1336,71 +1339,71 @@ function SettingsView({
   };
 
   return (
-    <main className="flex-1 h-full overflow-hidden bg-[#F6F2EA] p-2 flex flex-col">
-      <div className="h-10 min-h-10 border border-[#E5DFD3] rounded-t-lg bg-white px-3 flex items-center justify-between shadow-2xs">
+    <main className="flex-1 h-full overflow-hidden bg-[#F1F0EC] p-2 flex flex-col">
+      <div className="h-10 min-h-10 border border-[#D3D2CE] rounded-t-xs bg-white px-3 flex items-center justify-between ">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs text-[#29251D] hover:border-[#29251D] font-medium focus-techm transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs text-[#0B0B0C] hover:border-[#0B0B0C] font-medium focus-techm transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Canvas</span>
           </button>
-          <div className="h-4 w-[1px] bg-[#E5DFD3]" />
+          <div className="h-4 w-[1px] bg-[#D3D2CE]" />
           <div className="flex items-center gap-1.5">
             <Settings className="w-4 h-4 text-[#E31837]" />
-            <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
+            <h2 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
               ModelOS Workbench Settings & Engine Configurations
             </h2>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-white border border-[#E5DFD3] rounded-b-lg shadow-2xs p-4 max-w-xl space-y-4 text-xs mt-2 overflow-y-auto">
+      <div className="flex-1 bg-white border border-[#D3D2CE] rounded-b-xs p-4 max-w-xl space-y-4 text-xs mt-2 overflow-y-auto">
         <div>
-          <label className="font-semibold text-[#29251D] block mb-1">DuckDB Memory Limit (MB)</label>
+          <label className="font-semibold text-[#0B0B0C] block mb-1">DuckDB Memory Limit (MB)</label>
           <input
             type="number"
             value={duckdbMemory}
             onChange={e => setDuckdbMemory(e.target.value)}
-            className="w-full p-2 border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+            className="w-full p-2 border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
           />
-          <span className="text-[10px] text-[#4D4D4F]">Max in-memory buffer allocated for high-speed DuckDB synthetic aggregation.</span>
+          <span className="text-[10px] text-[#626263]">Max in-memory buffer allocated for high-speed DuckDB synthetic aggregation.</span>
         </div>
 
         <div>
-          <label className="font-semibold text-[#29251D] block mb-1">Polars Thread Pool Worker Count</label>
+          <label className="font-semibold text-[#0B0B0C] block mb-1">Polars Thread Pool Worker Count</label>
           <input
             type="number"
             value={polarsThreads}
             onChange={e => setPolarsThreads(e.target.value)}
-            className="w-full p-2 border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+            className="w-full p-2 border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
           />
-          <span className="text-[10px] text-[#4D4D4F]">Number of parallel Rayon worker threads for vectorized Parquet generation.</span>
+          <span className="text-[10px] text-[#626263]">Number of parallel Rayon worker threads for vectorized Parquet generation.</span>
         </div>
 
         <div>
-          <label className="font-semibold text-[#29251D] block mb-1">Default Differential Privacy Budget (ε)</label>
+          <label className="font-semibold text-[#0B0B0C] block mb-1">Default Differential Privacy Budget (ε)</label>
           <input
             type="number"
             step="0.1"
             value={defaultEpsilon}
             onChange={e => setDefaultEpsilon(e.target.value)}
-            className="w-full p-2 border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+            className="w-full p-2 border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
           />
-          <span className="text-[10px] text-[#4D4D4F]">Standard privacy noise parameter applied to continuous numerical telemetry.</span>
+          <span className="text-[10px] text-[#626263]">Standard privacy noise parameter applied to continuous numerical telemetry.</span>
         </div>
 
-        <div className="pt-2 border-t border-[#E5DFD3] flex gap-2">
+        <div className="pt-2 border-t border-[#D3D2CE] flex gap-2">
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-[#E31837] text-white rounded font-medium shadow-xs hover:bg-[#5F0229]"
+            className="px-4 py-2 bg-[#E31837] text-white rounded-xs font-medium hover:bg-[#141416]"
           >
             Save Configurations
           </button>
           <button
             onClick={onBack}
-            className="px-4 py-2 border border-[#E5DFD3] rounded text-[#4D4D4F]"
+            className="px-4 py-2 border border-[#D3D2CE] rounded-xs text-[#626263]"
           >
             Cancel
           </button>
@@ -1429,7 +1432,12 @@ const DEFAULT_COUNTRY: string = setting('VITE_DEFAULT_COUNTRY', import.meta.env.
 type DownloadFormat = ExportFormat;
 
 /** Domains shown for completeness only: they have no catalog data yet, so they are not loaded from the API and cannot be selected. */
-const COMING_SOON_DOMAINS = ['Healthcare', 'T&S', 'Manufacturing'];
+// Only these industries are offered for now (matched on the catalog name); anything else the API returns is hidden.
+const ENABLED_INDUSTRIES = [/telecom/i, /bank/i];
+// Display names only: the catalog name is still what the API and the scenario data use.
+const industryLabel = (name: string) => (/bank/i.test(name) ? 'BFSI' : name);
+// Greyed-out "coming soon" tiles. Empty for now; add names here to show them again.
+const COMING_SOON_DOMAINS: string[] = [];
 
 /** The plain-language line that explains a scenario: its description, or the first sentence of its business brief when it has none. */
 const scenarioExplanation = (scenario?: { description?: string | null; businessScenario?: string | null } | null): string => {
@@ -1465,6 +1473,16 @@ export default function App() {
   // The cascading dropdowns (industry -> sub-domain -> use case -> journeys) come from the catalog API.
   const catalog = useCatalog();
   const activeDomain = catalog.industryId;
+  const visibleIndustries = catalog.industries.filter(industry => ENABLED_INDUSTRIES.some(rx => rx.test(industry.name)));
+
+  // The sub-domain field is switched off for now (see the commented block in the form), so the first sub-domain of the
+  // chosen industry is picked automatically; the use cases are loaded from it exactly as before.
+  useEffect(() => {
+    if (catalog.subDomainsState === 'ready' && !catalog.subDomainId && catalog.subDomains.length > 0) {
+      void catalog.chooseSubDomain(catalog.subDomains[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog.subDomainsState, catalog.subDomains, catalog.subDomainId]);
   const [countries, setCountries] = useState<CatalogCountry[]>([]);
   const [countryCode, setCountryCode] = useState<string>(DEFAULT_COUNTRY);
   const useCaseId = catalog.useCaseId;
@@ -1490,9 +1508,11 @@ export default function App() {
   const [selectedScenario, setSelectedScenario] = useState<string>('');
   const [scenarioDetail, setScenarioDetail] = useState<CatalogScenarioDetail | null>(null);
   const [isScenarioLoading, setIsScenarioLoading] = useState(false);
+  // How the schema is created: proposed for the scenario ('prompt'), or read from a CSV the user provides ('import').
   const [inputMode, setInputMode] = useState<'prompt' | 'import'>('prompt');
-  const [importSubOption, setImportSubOption] = useState<'direct' | 'cloud'>('direct');
-  const [cloudUri, setCloudUri] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  // Set while the schema under review was read from a CSV (POST /scenario/import-csv) rather than proposed.
+  const [csvImport, setCsvImport] = useState<{ fileName: string } | null>(null);
   const [promptText, setPromptText] = useState('');
   const [showPromptInfo, setShowPromptInfo] = useState(false);
   const [showCanvasToolbar, setShowCanvasToolbar] = useState(false);
@@ -1672,6 +1692,7 @@ export default function App() {
     setIsExecuting(false);
     setIsExecutionComplete(false);
     setDraft(null);
+    setCsvImport(null);
     setConfirmed(null);
     setDeletedFieldNames([]);
     setConfirmedDeletions('');
@@ -1701,6 +1722,7 @@ export default function App() {
   const handleDomainChange = (industryId: string) => {
     resetPipeline();
     resetSelection();
+    setCsvFile(null);
     if (activeDomain === industryId) {
       void catalog.chooseIndustry(null);
       showToast('Deselected domain context');
@@ -1714,12 +1736,14 @@ export default function App() {
   const handleSubDomainChange = (subDomainId: string) => {
     resetPipeline();
     resetSelection();
+    setCsvFile(null);
     void catalog.chooseSubDomain(subDomainId);
   };
 
   const handleUseCaseChange = (nextUseCaseId: string) => {
     resetPipeline();
     resetSelection();
+    setCsvFile(null);
     void catalog.chooseUseCase(nextUseCaseId);
     // const name = catalog.useCases.find(item => item.id === nextUseCaseId)?.name;
     // if (name) showToast(`Scoped use case: ${name} — customer journeys loaded`);
@@ -1791,6 +1815,30 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // The start of step 1 -> 2, whichever way the schema is created: forget the previous draft, show the review pane while it is built.
+  const beginDraft = (message: string): number => {
+    const turn = ++pipelineTurn.current;
+    setDraft(null);
+    setCsvImport(null);
+    setConfirmed(null);
+    setDeletedFieldNames([]);
+    setConfirmedDeletions('');
+    setAddedVariables([]);
+    setVariableEdits({});
+    setVariableModal(null);
+    setFields([]);
+    setGenerated(null);
+    setActiveTab('table');
+    setIsExecutionComplete(false);
+    setMaxUnlockedStep(prev => Math.max(prev, 2) as 1 | 2 | 3);
+    setWorkflowStep(2);
+    setIsRunningPipeline(true);
+    setStageStatuses({ 1: 'COMPLETE', 2: 'PENDING', 3: 'PENDING', 4: 'PENDING', 5: 'READY' });
+    setActiveStage(2);
+    showToast(message);
+    return turn;
+  };
+
   // Step 1 -> 2: POST /scenario/propose proposes the schema for the selected scenario.
   const handleRunPipeline = async () => {
     if (isPipelineRunning) return;
@@ -1808,24 +1856,7 @@ export default function App() {
       showToast('This scenario has no business description yet; add one to the catalog first', 'error');
       return;
     }
-    const turn = ++pipelineTurn.current;
-    setDraft(null);
-    setConfirmed(null);
-    setDeletedFieldNames([]);
-    setConfirmedDeletions('');
-    setAddedVariables([]);
-    setVariableEdits({});
-    setVariableModal(null);
-    setFields([]);
-    setGenerated(null);
-    setActiveTab('table');
-    setIsExecutionComplete(false);
-    setMaxUnlockedStep(prev => Math.max(prev, 2) as 1 | 2 | 3);
-    setWorkflowStep(2);
-    setIsRunningPipeline(true);
-    setStageStatuses({ 1: 'COMPLETE', 2: 'PENDING', 3: 'PENDING', 4: 'PENDING', 5: 'READY' });
-    setActiveStage(2);
-    showToast('Proposing the schema for this scenario...');
+    const turn = beginDraft('Proposing the schema for this scenario...');
     try {
       const result = await proposeScenario({
         requestedScenarioId: defaults.requestedScenarioId,
@@ -1855,7 +1886,64 @@ export default function App() {
       if (turn === pipelineTurn.current) setIsRunningPipeline(false);
     }
   };
-  runPipelineRef.current = () => void handleRunPipeline();
+
+  // Step 1 -> 2, from a file: POST /scenario/import-csv reads the variables from the CSV and returns a draft to review.
+  const handleImportCsv = async () => {
+    if (isPipelineRunning) return;
+    if (!activeDomain) {
+      showToast('Please select an industry domain first', 'warning');
+      return;
+    }
+    if (!scenarioDetail) {
+      showToast(selectedScenario ? 'The scenario is still loading' : 'Please select a customer journey scenario first', 'warning');
+      return;
+    }
+    if (!csvFile) {
+      showToast('Choose the CSV file that defines the variables first', 'warning');
+      return;
+    }
+    const defaults = scenarioDetail.proposeRequest;
+    const file = csvFile;
+    const turn = beginDraft(`Reading the variables from ${file.name}...`);
+    try {
+      const result = await importScenarioCsv({
+        file,
+        requestedScenarioId: defaults.requestedScenarioId,
+        domain: defaults.domain,
+        industryType: defaults.industryType,
+        typeOfData: typeOfData || defaults.typeOfData,
+        country: countryCode,
+        businessScenario: (promptText.trim() || defaults.businessScenario || '').trim(),
+        scenarioType: defaults.scenarioType,
+        useCase: defaults.useCase,
+        label: scenarioDetail.label,
+        entityKey: defaults.entityKey
+      });
+      if (turn !== pipelineTurn.current) return;
+      // The server leaves the source of CSV variables empty; mark them as yours so the table says where they came from.
+      const imported = { ...result, variableSources: { ...result.variableSources, ...csvSources(result.variables) } };
+      setDraft(imported);
+      setCsvImport({ fileName: file.name });
+      setFields(toDataFields(imported.variables, imported.variableSources, imported.entityKey));
+      setStageStatuses({ 1: 'COMPLETE', 2: 'COMPLETE', 3: 'PENDING', 4: 'PENDING', 5: 'READY' });
+      setActiveStage(3);
+      setPipelineRun(true);
+      showToast(`Imported ${result.variables.length} variables from ${file.name}. Review them, then approve.`, 'success');
+      const problems = Array.isArray(result.specReport?.problems) ? (result.specReport?.problems as unknown[]) : [];
+      if (result.specReport?.status === 'unavailable') {
+        showToast(`The data design could not be prepared yet${problems[0] ? `: ${String(problems[0])}` : ''}. It will be tried again when you generate.`, 'warning');
+      }
+    } catch (error) {
+      if (turn !== pipelineTurn.current) return;
+      setMaxUnlockedStep(1);
+      setWorkflowStep(1);
+      setStageStatuses({ ...allStagesReady });
+      notifyApiError(error, `Could not import ${file.name}.`);
+    } finally {
+      if (turn === pipelineTurn.current) setIsRunningPipeline(false);
+    }
+  };
+  runPipelineRef.current = () => void (inputMode === 'import' ? handleImportCsv() : handleRunPipeline());
 
   // Step 2 -> 3: POST /scenario/confirm approves the draft, with the variables the reviewer removed.
   const handleApproveSchema = async () => {
@@ -1903,7 +1991,7 @@ export default function App() {
       if (turn !== pipelineTurn.current) return;
       setConfirmed(result);
       setConfirmedDeletions(deletions);
-      setFields(toDataFields(result.variables, result.variableSources, result.entityKey));
+      setFields(toDataFields(result.variables, { ...(csvImport ? draft.variableSources : {}), ...result.variableSources }, result.entityKey));
       setStageStatuses(prev => ({ ...prev, 3: 'COMPLETE', 4: 'COMPLETE' }));
       setActiveStage(4);
       setMaxUnlockedStep(3);
@@ -2197,17 +2285,17 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#F6F2EA] text-[#29251D] font-sans select-none">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#F1F0EC] text-[#0B0B0C] font-sans select-none">
       {/* =========================================================================
-          TOP APPLICATION HEADER (Fixed 56px, Canvas Background #F6F2EA)
+          TOP APPLICATION HEADER (Fixed 56px, ink bar to match the landing page)
           ========================================================================= */}
-      <header className="h-[56px] min-h-[56px] border-b border-[#E5DFD3] bg-[#F6F2EA] px-4 flex items-center justify-between z-20">
+      <header className="h-14 min-h-14 border-b border-white/10 bg-[#0B0B0C] px-4 flex items-center justify-between z-20">
         {/* Left: the ModelOS Source logo (one image; opens the ModelOS platform) */}
         <h1 className="sr-only">ModelOS - Synthetic Data Generator</h1>
         <BrandHeader />
 
         {/* Right side controls */}
-        <div className="flex items-center gap-2" />
+        <span className="wb-cap text-[#F1F0EC]/60">Synthetic data workbench</span>
       </header>
 
       {/* =========================================================================
@@ -2220,8 +2308,8 @@ export default function App() {
         <aside className={`${
           sidebarCollapsed
             ? 'w-0 min-w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none'
-            : 'w-[56px] min-w-[56px] border-r border-[#E5DFD3]'
-        } bg-[#FFFFFF] flex flex-col items-center py-2 justify-between z-10 transition-all duration-200 relative shrink-0`}>
+            : 'w-[64px] min-w-[64px] border-r border-white/10'
+        } bg-[#0B0B0C] text-[#F1F0EC] flex flex-col items-center py-2 justify-between z-10 transition-all duration-200 relative shrink-0`}>
           <div className="flex flex-col items-center gap-1 w-full">
             {/* Collapse Side Arrow Button */}
             <button
@@ -2232,7 +2320,7 @@ export default function App() {
               }}
               title="Hide side panel (Click side arrow)"
               aria-label="Hide side panel"
-              className="w-full h-6 flex items-center justify-center text-[#4D4D4F] hover:text-[#E31837] hover:bg-[#F6F2EA] transition-colors cursor-pointer border-b border-[#E5DFD3]/60 mb-0.5"
+              className="w-full h-7 flex items-center justify-center text-[#F1F0EC]/50 hover:text-[#E31837] transition-colors cursor-pointer border-b border-white/10 mb-1"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
@@ -2242,29 +2330,29 @@ export default function App() {
               onClick={() => setCurrentView('frontpage')}
               title="SynthDataAI — Front Page Overview"
               aria-label="Front Page"
-              className="w-full h-11 flex flex-col items-center justify-center relative focus-techm transition-all cursor-pointer text-[#4D4D4F] hover:text-[#4f46e5] hover:bg-[#EEF2FF]"
+              className="w-full h-14 flex flex-col items-center justify-center relative focus-techm transition-colors cursor-pointer text-[#F1F0EC]/55 hover:text-[#F1F0EC] hover:bg-white/5"
             >
-              <FlaskConical className="w-4 h-4 text-[#6366f1]" />
-              <span className="text-[9px] font-medium tracking-tight mt-0.5">Home</span>
+              <FlaskConical className="w-4 h-4" />
+              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] mt-1">Home</span>
             </button>
-            <div className="w-8 h-px bg-[#E5DFD3] my-0.5" />
+            <div className="w-8 h-px bg-white/10 my-1" />
 
             {/* Nav item 1: Workbench */}
             <button
               onClick={() => setActiveNav('workbench')}
               title="Multi-Domain Workbench — Interactive 5-Stage Generation Pipeline"
               aria-label="Multi-Domain Workbench"
-              className={`w-full h-12 flex flex-col items-center justify-center relative focus-techm transition-all cursor-pointer ${
+              className={`w-full h-14 flex flex-col items-center justify-center relative focus-techm transition-colors cursor-pointer ${
                 activeNav === 'workbench'
-                  ? 'text-[#E31837] bg-[#F6F2EA] font-semibold'
-                  : 'text-[#4D4D4F] hover:text-[#29251D] hover:bg-[#F6F2EA]'
+                  ? 'text-[#F1F0EC] bg-white/5'
+                  : 'text-[#F1F0EC]/55 hover:text-[#F1F0EC] hover:bg-white/5'
               }`}
             >
               {activeNav === 'workbench' && (
-                <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#E31837] rounded-r" />
+                <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#E31837]" />
               )}
               <Layers className="w-5 h-5" />
-              <span className="text-[9px] font-medium tracking-tight mt-0.5">Canvas</span>
+              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] mt-1">Canvas</span>
             </button>
           </div>
         </aside>
@@ -2280,9 +2368,9 @@ export default function App() {
               }}
               title="Show side navigation panel (Click side arrow)"
               aria-label="Show side navigation panel"
-              className="h-14 w-4 bg-white border border-[#E5DFD3] border-l-0 rounded-r-md flex items-center justify-center shadow-xs text-[#4D4D4F] hover:text-[#E31837] hover:bg-[#FDF9F0] transition-all cursor-pointer"
+              className="h-14 w-4 bg-[#0B0B0C] border border-[#0B0B0C] border-l-0 rounded-r-xs flex items-center justify-center text-[#F1F0EC]/60 hover:text-[#E31837] transition-all cursor-pointer"
             >
-              <ChevronRight className="w-3.5 h-3.5 text-[#E31837]" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -2291,103 +2379,62 @@ export default function App() {
             C. THREE-PANE SEQUENTIAL PROGRESSIVE WORKSPACE
             ======================================================================= */}
         {activeNav === 'workbench' && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F6F2EA]">
+          <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F1F0EC]">
             {/* Sequential 3-Step Workspace Navigation Bar */}
-            <div className="px-3 py-2 bg-white border-b border-[#E5DFD3] flex items-center justify-between shadow-2xs shrink-0">
+            <div className="px-4 py-1.5 bg-white border-b border-[#D3D2CE] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-[#29251D] uppercase tracking-wider flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-[#E31837]" />
-                  <span>Sequential Workflow:</span>
+                <span className="text-[11px] text-[#626263] uppercase tracking-[0.06em] flex items-center gap-1.5 font-mono mr-2">
+                  <Sliders className="w-3.5 h-3.5 text-[#626263]" />
+                  <span>Workflow</span>
                 </span>
-                <div className="flex items-center gap-1">
-                  {/* Step 1 Tab */}
-                  <button
-                    onClick={() => setWorkflowStep(1)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                      workflowStep === 1
-                        ? 'bg-[#E31837] text-white font-semibold shadow-xs'
-                        : maxUnlockedStep >= 1
-                          ? 'bg-[#F6F2EA] text-[#29251D] hover:bg-[#F2ECE0] border border-[#E5DFD3]'
-                          : 'text-[#4D4D4F] opacity-60'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      workflowStep === 1 ? 'bg-white/20 text-white' : 'bg-[#E5DFD3] text-[#29251D]'
-                    }`}>
-                      1
-                    </span>
-                    <span>Pane 1: Industry & Input</span>
-                    {maxUnlockedStep >= 2 && <Check className="w-3 h-3 text-[#247153]" />}
-                  </button>
-
-                  <ChevronRight className="w-3.5 h-3.5 text-[#4D4D4F] shrink-0" />
-
-                  {/* Step 2 Tab */}
-                  <button
-                    onClick={() => {
-                      if (maxUnlockedStep >= 2) setWorkflowStep(2);
-                      else showToast('Please select target industry and fill inputs in Pane 1 first');
-                    }}
-                    className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      workflowStep === 2
-                        ? 'bg-[#E31837] text-white font-semibold shadow-xs cursor-pointer'
-                        : maxUnlockedStep >= 2
-                          ? 'bg-[#F6F2EA] text-[#29251D] hover:bg-[#F2ECE0] border border-[#E5DFD3] cursor-pointer'
-                          : 'bg-[#F6F2EA]/40 text-[#4D4D4F] border border-dashed border-[#E5DFD3] opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      workflowStep === 2 ? 'bg-white/20 text-white' : 'bg-[#E5DFD3] text-[#29251D]'
-                    }`}>
-                      2
-                    </span>
-                    <span>Pane2: Schema</span>
-                    {maxUnlockedStep < 2 ? (
-                      <Lock className="w-3 h-3 text-[#4D4D4F]" />
-                    ) : maxUnlockedStep >= 3 ? (
-                      <Check className="w-3 h-3 text-[#247153]" />
-                    ) : null}
-                  </button>
-
-                  <ChevronRight className="w-3.5 h-3.5 text-[#4D4D4F] shrink-0" />
-
-                  {/* Step 3 Tab */}
-                  <button
-                    onClick={() => {
-                      if (maxUnlockedStep >= 3) setWorkflowStep(3);
-                      else showToast('Please complete pipeline synthesis and approve schema in Pane 2 first');
-                    }}
-                    className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      workflowStep === 3
-                        ? 'bg-[#E31837] text-white font-semibold shadow-xs cursor-pointer'
-                        : maxUnlockedStep >= 3
-                          ? 'bg-[#F6F2EA] text-[#29251D] hover:bg-[#F2ECE0] border border-[#E5DFD3] cursor-pointer'
-                          : 'bg-[#F6F2EA]/40 text-[#4D4D4F] border border-dashed border-[#E5DFD3] opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      workflowStep === 3 ? 'bg-white/20 text-white' : 'bg-[#E5DFD3] text-[#29251D]'
-                    }`}>
-                      3
-                    </span>
-                    <span>Core Data Generation</span>
-                    {maxUnlockedStep < 3 ? (
-                      <Lock className="w-3 h-3 text-[#4D4D4F]" />
-                    ) : (
-                      <Check className="w-3 h-3 text-[#247153]" />
-                    )}
-                  </button>
+                <div className="flex items-stretch gap-0">
+                  {([
+                    { n: 1, label: 'Scenario', blocked: 'Please choose your scenario in step 1 first' },
+                    { n: 2, label: 'Schema', blocked: 'Please choose your scenario in step 1 first' },
+                    { n: 3, label: 'Generate', blocked: 'Please review and approve the schema in step 2 first' },
+                  ] as const).map(({ n, label, blocked }) => {
+                    const active = workflowStep === n;
+                    const unlocked = maxUnlockedStep >= n;
+                    const done = maxUnlockedStep > n;
+                    return (
+                      <React.Fragment key={n}>
+                        {n > 1 && <span aria-hidden="true" className="self-center w-6 h-px bg-[#D3D2CE] mx-1 shrink-0" />}
+                        <button
+                          type="button"
+                          aria-current={active ? 'step' : undefined}
+                          onClick={() => {
+                            if (unlocked) setWorkflowStep(n);
+                            else showToast(blocked);
+                          }}
+                          className={`relative px-3 py-2 flex items-center gap-2.5 transition-colors focus-techm ${
+                            active
+                              ? 'text-[#0B0B0C] cursor-pointer'
+                              : unlocked
+                                ? 'text-[#626263] hover:text-[#0B0B0C] cursor-pointer'
+                                : 'text-[#9A9A9C] cursor-not-allowed'
+                          }`}
+                        >
+                          <span className={`font-mono text-[11px] tracking-[0.06em] ${active ? 'text-[#E31837]' : ''}`}>
+                            {String(n).padStart(2, '0')}
+                          </span>
+                          <span className="text-sm font-medium tracking-[-0.01em]">{label}</span>
+                          {!unlocked ? (
+                            <Lock className="w-3 h-3" />
+                          ) : done ? (
+                            <Check className="w-3 h-3 text-[#247153]" />
+                          ) : null}
+                          <span aria-hidden="true" className={`absolute left-3 right-3 -bottom-1.5 h-[2px] bg-[#E31837] origin-left transition-transform duration-500 ${active ? 'scale-x-100' : 'scale-x-0'}`} />
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Status Indicator */}
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono text-[11px] text-[#4D4D4F]">
-                  {maxUnlockedStep === 1
-                    ? 'Step 1 Active • Panes 2 & 3 Hidden'
-                    : maxUnlockedStep === 2
-                      ? 'Step 2 Active • Pane 3 Hidden'
-                      : 'All 3 Panes Unlocked'}
+                <span className="font-mono text-[11px] text-[#626263]">
+                  Step {workflowStep} of 3
                 </span>
                 {maxUnlockedStep > 1 && (
                   <button
@@ -2404,44 +2451,59 @@ export default function App() {
               </div>
             </div>
 
-            <main className={`flex-1 min-h-0 grid grid-cols-12 gap-2 p-2 h-full ${
-              maxUnlockedStep === 1 ? 'overflow-y-auto grid-rows-[minmax(min-content,1fr)]' : 'overflow-hidden'
+            <main className={`flex-1 min-h-0 grid grid-cols-12 gap-2.5 p-2.5 h-full overflow-hidden ${
+              workflowStep === 1 ? 'grid-rows-[minmax(0,1fr)]' : 'grid-rows-[auto_minmax(0,1fr)]'
             }`}>
+          {workflowStep >= 2 && maxUnlockedStep >= 2 && (
+            <ContextBar
+              onEdit={() => setWorkflowStep(1)}
+              items={[
+                { label: 'Industry', value: industryLabel(catalog.industries.find(i => i.id === activeDomain)?.name ?? '—') },
+                { label: 'Use case', value: catalog.useCases.find(u => u.id === useCaseId)?.name ?? '—' },
+                { label: 'Journey', value: scenarioDetail?.journey?.name ?? '—' },
+                { label: 'Scenario', value: scenarioDetail?.label ?? selectedScenario ?? '—' },
+                { label: 'Data', value: DATA_TYPE_OPTIONS.find(o => o.value === typeOfData)?.label ?? '—' },
+                { label: 'Schema from', value: csvImport ? `CSV · ${csvImport.fileName}` : 'Proposed for you' },
+                { label: 'Country', value: countryCode },
+              ]}
+            />
+          )}
+          {workflowStep === 1 && (
+            <StepIntro
+              items={[
+                { label: 'Industry', done: !!activeDomain },
+                { label: 'Use case', done: !!useCaseId },
+                { label: 'Customer journey', done: !!selectedScenario },
+                { label: 'Type of data', done: !!typeOfData },
+              ]}
+            />
+          )}
           {/* =====================================================================
               PANE 1: CONTEXT & BUSINESS INPUT SELECTOR (Step 1)
               ===================================================================== */}
           <section className={`${
-            maxUnlockedStep === 1
-              ? 'col-span-12 max-w-4xl mx-auto w-full'
-              : maxUnlockedStep === 2
-                ? 'col-span-4'
-                : 'col-span-3'
-          } ${maxUnlockedStep === 1 ? 'h-fit self-center' : 'h-full'} flex flex-col bg-[#FFFFFF] border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${
-            workflowStep === 1 ? 'ring-2 ring-[#E31837]/30' : ''
+            workflowStep === 1 ? 'col-span-12 lg:col-span-10 2xl:col-span-9' : 'hidden'
+          } h-full wb-pane flex flex-col bg-[#FFFFFF] border border-[#D3D2CE] rounded-xs overflow-hidden transition-all ${
+            workflowStep === 1 ? 'border-t-2 border-t-[#E31837]' : ''
           }`}>
             {/* Pane Header */}
-            <div className="h-10 min-h-10 px-3 border-b border-[#E5DFD3] flex items-center justify-between bg-[#FFFFFF]">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-[#E31837]" />
-                <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
-                  Context & Business Input
-                </h2>
-              </div>
+            <div className="h-10 min-h-10 px-4 border-b border-[#D3D2CE] flex items-center justify-between bg-[#FFFFFF]">
+              <h2 className="wb-cap text-[#0B0B0C]">Context &amp; Business Input</h2>
             </div>
 
             {/* Scrollable Context Body */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
+            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-12 gap-x-4 gap-y-3 content-start text-xs">
               {/* Domain Picker Pills (industries from GET /catalog/industries) */}
-              <div>
+              <div className={!activeDomain ? 'col-span-12 h-full flex flex-col' : 'col-span-12 lg:col-span-5'}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                  <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                     Target Industry Domain
                   </label>
                   {activeDomain && (
                     <button
                       type="button"
                       onClick={() => handleDomainChange(activeDomain)}
-                      className="text-[10px] text-[#4D4D4F] hover:text-[#E31837] hover:underline cursor-pointer flex items-center gap-1 font-medium"
+                      className="text-[10px] text-[#626263] hover:text-[#E31837] hover:underline cursor-pointer flex items-center gap-1 font-medium"
                       title="Show all industry domains"
                     >
                       <span>Change Domain</span>
@@ -2450,29 +2512,29 @@ export default function App() {
                 </div>
 
                 {catalog.industriesState === 'error' ? (
-                  <div className="p-3 text-center text-xs border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40 space-y-1.5">
+                  <div className="p-3 text-center text-xs border border-dashed border-[#D3D2CE] rounded-xs bg-[#F1F0EC]/40 space-y-1.5">
                     <p className="text-[#9C1936] font-medium">Could not load the industry domains.</p>
                     <button
                       type="button"
                       onClick={() => void catalog.loadIndustries()}
-                      className="px-2.5 py-1 text-[11px] bg-white border border-[#E5DFD3] hover:border-[#29251D] rounded font-medium cursor-pointer"
+                      className="px-2.5 py-1 text-[11px] bg-white border border-[#D3D2CE] hover:border-[#0B0B0C] rounded-xs font-medium cursor-pointer"
                     >
                       Retry
                     </button>
                   </div>
                 ) : catalog.industriesState !== 'ready' ? (
-                  <div className="p-3 text-center text-xs text-[#8E8B82] italic border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40">
+                  <div className="p-3 text-center text-xs text-[#8F8F8D] italic border border-dashed border-[#D3D2CE] rounded-xs bg-[#F1F0EC]/40">
                     Loading industry domains...
                   </div>
-                ) : catalog.industries.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-[#8E8B82] italic border border-dashed border-[#E5DFD3] rounded-lg bg-[#F6F2EA]/40">
+                ) : visibleIndustries.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-[#8F8F8D] italic border border-dashed border-[#D3D2CE] rounded-xs bg-[#F1F0EC]/40">
                     No industry domains are configured yet.
                   </div>
                 ) : (
-                  <div className={activeDomain ? "flex flex-col gap-2" : "grid grid-cols-2 gap-2"}>
-                    {catalog.industries
+                  <div className={activeDomain ? "flex flex-col gap-2" : "grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] auto-rows-[64px] content-start gap-2.5"}>
+                    {visibleIndustries
                       .filter(industry => !activeDomain || activeDomain === industry.id)
-                      .map(industry => {
+                      .map((industry, tileIdx) => {
                         const { Logo, color } = getDomainVisual(industry.name);
                         const isSelected = activeDomain === industry.id;
 
@@ -2480,21 +2542,22 @@ export default function App() {
                           return (
                             <div
                               key={industry.id}
-                              className="p-3 bg-[#E31837] text-white rounded-lg shadow-sm border border-[#C0152F] flex items-center justify-between transition-all"
+                              className="px-3 h-12 bg-[#E31837] text-white rounded-xs border border-[#C8102E] flex items-center justify-between transition-all"
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 text-white shadow-inner">
-                                  <Logo className={`w-6 h-6 ${color}`} />
+                                <div className="w-8 h-8 rounded-xs bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 text-white ">
+                                  <Logo className={`w-5 h-5 ${color}`} />
                                 </div>
                                 <div className="min-w-0">
-                                  <span className="text-sm font-bold block leading-tight tracking-wide text-white truncate">
-                                    {industry.name}
+                                  <span className="text-sm font-semibold block leading-tight tracking-wide text-white truncate">
+                                    {industryLabel(industry.name)}
                                   </span>
+                                  {/* Sub-domain count hidden while the sub-domain field is off:
                                   <span className="text-[11px] text-white/80 font-mono block mt-0.5 truncate">
                                     {catalog.subDomainsState === 'ready'
                                       ? `${catalog.subDomains.length} Sub-domain${catalog.subDomains.length === 1 ? '' : 's'}`
                                       : 'Loading sub-domains...'}
-                                  </span>
+                                  </span> */}
                                 </div>
                               </div>
                             </div>
@@ -2506,16 +2569,17 @@ export default function App() {
                             key={industry.id}
                             type="button"
                             onClick={() => handleDomainChange(industry.id)}
-                            className="group p-2.5 rounded-lg border border-[#E5DFD3] bg-[#F6F2EA]/70 hover:bg-white hover:border-[#E31837] text-left transition-all cursor-pointer shadow-2xs flex items-center gap-2.5 focus-techm"
+                            style={{ '--i': tileIdx } as React.CSSProperties}
+                            className="wb-row group relative px-3 rounded-xs border border-[#D3D2CE] bg-[#F1F0EC]/70 hover:bg-white hover:border-[#0B0B0C] text-left transition-colors cursor-pointer flex items-center gap-3 focus-techm"
                           >
-                            <div className="w-9 h-9 rounded-md bg-white border border-[#E5DFD3] group-hover:border-[#E31837]/40 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-all">
-                              <Logo className={`w-6 h-6 ${color}`} />
+                            <div className="w-9 h-9 rounded-xs bg-white border border-[#D3D2CE] group-hover:border-[#0B0B0C]/40 flex items-center justify-center shrink-0 transition-colors">
+                              <Logo className={`w-5 h-5 ${color}`} />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <span className="text-xs font-bold text-[#29251D] group-hover:text-[#E31837] block leading-snug truncate transition-colors">
-                                {industry.name}
-                              </span>
-                            </div>
+                            <span className="flex-1 min-w-0 text-[15px] font-medium tracking-[-0.02em] text-[#0B0B0C] truncate">
+                              {industryLabel(industry.name)}
+                            </span>
+                            <span className="font-mono text-[10px] tracking-[0.06em] text-[#8F8F8D]">{String(tileIdx + 1).padStart(2, '0')}</span>
+                            <span aria-hidden="true" className="absolute left-0 right-0 bottom-0 h-[2px] bg-[#E31837] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
                           </button>
                         );
                       })}
@@ -2528,25 +2592,76 @@ export default function App() {
                             key={`coming-soon-${name}`}
                             aria-disabled="true"
                             title="Not available yet"
-                            className="p-2.5 rounded-lg border border-[#E5DFD3] bg-[#F6F2EA]/40 text-left flex items-center gap-2.5 opacity-55 cursor-not-allowed select-none"
+                            className="px-3 rounded-xs border border-dashed border-[#D3D2CE] bg-transparent text-left flex items-center gap-3 opacity-60 cursor-not-allowed select-none"
                           >
-                            <div className="w-9 h-9 rounded-md bg-white border border-[#E5DFD3] flex items-center justify-center shrink-0 grayscale">
-                              <Logo className={`w-6 h-6 ${color}`} />
+                            <div className="w-9 h-9 rounded-xs bg-white border border-[#D3D2CE] flex items-center justify-center shrink-0 grayscale">
+                              <Logo className={`w-5 h-5 ${color}`} />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <span className="text-xs font-bold text-[#4D4D4F] block leading-snug truncate">{name}</span>
-                            </div>
+                            <span className="flex-1 min-w-0 text-[15px] font-medium tracking-[-0.02em] text-[#626263] truncate">{name}</span>
+                            <span className="font-mono text-[10px] tracking-[0.06em] text-[#8F8F8D] uppercase">Soon</span>
                           </div>
                         );
                       })}
                   </div>
                 )}
 
+                {!activeDomain && catalog.industriesState === 'ready' && (
+                  <div className="wb-csv-card mt-4 rounded-xs p-4 flex items-center gap-4 flex-wrap">
+                    <span className="shrink-0 w-10 h-10 rounded-xs bg-[#E31837] flex items-center justify-center">
+                      <Upload className="w-5 h-5 text-white" />
+                    </span>
+                    <div className="min-w-[220px] flex-1">
+                      <p className="flex items-center gap-2 text-[15px] font-medium tracking-[-0.01em]">
+                        Start from your own CSV
+                        <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-[#E31837] border border-[#E31837]/60 px-1 py-px">Your data</span>
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-snug text-[#F1F0EC]/65">
+                        Pick an industry and a scenario, then choose "Upload a CSV" under schema source. Your column names and types become the schema.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => downloadText(CSV_TEMPLATE_FILE_NAME, CSV_TEMPLATE, 'text/csv;charset=utf-8')}
+                      className="wb-link shrink-0 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.06em] text-[#F1F0EC] hover:text-[#E31837] transition-colors cursor-pointer focus-techm"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Sample CSV
+                    </button>
+                  </div>
+                )}
+
+                {!activeDomain && catalog.industriesState === 'ready' && (
+                  <div className="wb-tall-only mt-6">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#626263]">What happens next</p>
+                    <ol className="mt-2 border-t border-[#D3D2CE]">
+                      {[
+                        ['Review the schema', 'We propose the variables for your scenario, or you bring your own CSV. Add, edit or remove columns.'],
+                        ['Approve it', 'Every column has a source, a type and its rules. Approving locks them in.'],
+                        ['Generate and download', 'Choose the number of users and records per user, run it, then download the data.'],
+                      ].map(([title, text], i) => (
+                        <li key={title} className="flex items-baseline gap-5 py-3 border-b border-[#D3D2CE]">
+                          <span className="font-mono text-[11px] tracking-[0.06em] text-[#8F8F8D] w-5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                          <span className="w-[200px] shrink-0 text-[15px] font-medium tracking-[-0.01em] text-[#0B0B0C]">{title}</span>
+                          <span className="text-[13px] leading-relaxed text-[#626263]">{text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {!activeDomain && catalog.industriesState === 'ready' && (
+                  <p className="mt-auto pt-6 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.06em] text-[#8F8F8D]">
+                    <span aria-hidden="true" className="h-px flex-1 bg-[#D3D2CE]" />
+                    <span>More industries appear here as they are connected</span>
+                  </p>
+                )}
+
                 {/* Sub-domain and Use Case dropdowns (GET /catalog/sub-domains, GET /catalog/use-cases) */}
                 {activeDomain && (
-                  <div className="mt-2.5 p-2 bg-[#F6F2EA] rounded-md border border-[#E5DFD3] space-y-2">
+                  <div className="mt-2.5 p-2 bg-[#F1F0EC] rounded-xs border border-[#D3D2CE] space-y-2">
+                    {/* Sub-domain field, switched off for now (the first sub-domain is chosen automatically, see the effect above).
+                        Restore it by removing this comment marker pair.
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                      <label className="block text-[10px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                         Sub-domain
                       </label>
                       <div className="relative">
@@ -2554,26 +2669,27 @@ export default function App() {
                           value={catalog.subDomainId}
                           onChange={e => handleSubDomainChange(e.target.value)}
                           disabled={catalog.subDomainsState !== 'ready' || catalog.subDomains.length === 0}
-                          className={`w-full text-xs font-medium bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                            !catalog.subDomainId ? 'text-[#8E8B82] italic' : 'text-[#29251D] font-semibold'
+                          className={`w-full text-xs font-medium bg-white border border-[#D3D2CE] rounded-xs px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                            !catalog.subDomainId ? 'text-[#8F8F8D] italic' : 'text-[#0B0B0C] font-semibold'
                           }`}
                         >
-                          <option value="" className="text-[#8E8B82] not-italic">
+                          <option value="" className="text-[#8F8F8D] not-italic">
                             {catalog.subDomainsState === 'loading' ? 'Loading...' : '---select-----'}
                           </option>
                           {catalog.subDomains.map(sub => (
-                            <option key={sub.id} value={sub.id} className="text-[#29251D] py-1 not-italic font-medium">
+                            <option key={sub.id} value={sub.id} className="text-[#0B0B0C] py-1 not-italic font-medium">
                               {sub.name}
                             </option>
                           ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                        <ChevronDown className="w-3.5 h-3.5 text-[#626263] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
                       </div>
                     </div>
+                    */}
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                        <label className="block text-[10px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                           Use case
                         </label>
                       </div>
@@ -2582,25 +2698,25 @@ export default function App() {
                           value={useCaseId}
                           onChange={e => handleUseCaseChange(e.target.value)}
                           disabled={!catalog.subDomainId || catalog.useCasesState !== 'ready' || catalog.useCases.length === 0}
-                          className={`w-full text-xs font-medium bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                            !useCaseId ? 'text-[#8E8B82] italic' : 'text-[#29251D] font-semibold'
+                          className={`w-full text-xs font-medium bg-white border border-[#D3D2CE] rounded-xs px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                            !useCaseId ? 'text-[#8F8F8D] italic' : 'text-[#0B0B0C] font-semibold'
                           }`}
                         >
-                          <option value="" className="text-[#8E8B82] not-italic">
+                          <option value="" className="text-[#8F8F8D] not-italic">
                             {catalog.useCasesState === 'loading' ? 'Loading...' : '---select-----'}
                           </option>
                           {catalog.useCases.map(item => (
-                            <option key={item.id} value={item.id} className="text-[#29251D] py-1 not-italic font-medium">
+                            <option key={item.id} value={item.id} className="text-[#0B0B0C] py-1 not-italic font-medium">
                               {item.name}
                             </option>
                           ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                        <ChevronDown className="w-3.5 h-3.5 text-[#626263] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
                       </div>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                      <label className="block text-[10px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                         Country
                       </label>
                       <div className="relative">
@@ -2608,7 +2724,7 @@ export default function App() {
                           value={countryCode}
                           onChange={e => setCountryCode(e.target.value)}
                           disabled={countries.length === 0}
-                          className="w-full text-xs font-semibold text-[#29251D] bg-white border border-[#E5DFD3] rounded px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="w-full text-xs font-semibold text-[#0B0B0C] bg-white border border-[#D3D2CE] rounded-xs px-2.5 py-1.5 pr-8 appearance-none focus:outline-none focus:border-[#E31837] focus:ring-1 focus:ring-[#E31837] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {countries.length === 0 && <option value={countryCode}>{countryCode}</option>}
                           {countries.map(c => (
@@ -2617,7 +2733,7 @@ export default function App() {
                             </option>
                           ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+                        <ChevronDown className="w-3.5 h-3.5 text-[#626263] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
                       </div>
                     </div>
 
@@ -2627,12 +2743,12 @@ export default function App() {
                           <CheckCircle2 className="w-3 h-3 text-[#247153]" />
                           Scenarios Loaded
                         </span>
-                        <span className="font-mono text-[#E31837] font-semibold">
+                        <span className="font-mono text-[#E31837] font-medium">
                           {customerJourneys.length} Journey{customerJourneys.length === 1 ? '' : 's'}
                         </span>
                       </div>
                     ) : (
-                      <p className="text-[10px] text-[#8E8B82] italic pt-0.5">
+                      <p className="text-[10px] text-[#8F8F8D] italic pt-0.5">
                         {!catalog.subDomainId ? 'Select a sub-domain, then a use case, to load customer journeys' : 'Select a use case to load customer journeys'}
                       </p>
                     )}
@@ -2641,15 +2757,15 @@ export default function App() {
               </div>
 
               {/* Customer Journey Accordion (GET /catalog/journeys, GET /catalog/scenarios) */}
-              <div className={activeDomain ? 'block' : 'hidden'}>
+              <div className={activeDomain ? 'col-span-12 lg:col-span-7' : 'hidden'}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                  <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                     Customer Journey & Business Scenarios
                   </label>
-                  <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
+                  <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-xs ${
                     customerJourneys.length > 0
                       ? 'text-[#E31837] bg-[#E31837]/10'
-                      : 'text-[#4D4D4F] bg-[#F6F2EA] border border-[#E5DFD3]'
+                      : 'text-[#626263] bg-[#F1F0EC] border border-[#D3D2CE]'
                   }`}>
                     {catalog.journeysState === 'loading'
                       ? 'Loading...'
@@ -2658,9 +2774,9 @@ export default function App() {
                         : 'Awaiting Use Case Selection'}
                   </span>
                 </div>
-                <div className="border border-[#E5DFD3] rounded-md divide-y divide-[#E5DFD3] bg-[#FFFFFF] overflow-hidden shadow-2xs">
+                <div className="border border-[#D3D2CE] rounded-xs divide-y divide-[#D3D2CE] bg-[#FFFFFF] overflow-hidden ">
                   {customerJourneys.length === 0 ? (
-                    <div className="p-3 bg-white text-center text-xs text-[#8E8B82] italic">
+                    <div className="p-3 bg-white text-center text-xs text-[#8F8F8D] italic">
                       {catalog.journeysState === 'loading'
                         ? 'Loading customer journeys...'
                         : catalog.journeysState === 'ready'
@@ -2678,35 +2794,35 @@ export default function App() {
                             onClick={() => setOpenJourneyIndex(isOpen ? -1 : idx)}
                             className={`w-full px-2.5 py-2.5 flex items-center justify-between text-left font-medium transition-colors focus-techm cursor-pointer ${
                               isJourneyActive
-                                ? 'bg-[#FDF9F0] border-l-2 border-l-[#E31837]'
-                                : 'hover:bg-[#F6F2EA]'
+                                ? 'bg-[#F8F7F4] border-l-2 border-l-[#E31837]'
+                                : 'hover:bg-[#F1F0EC]'
                             }`}
                           >
                             <div className="min-w-0 pr-1 truncate">
                               <span
                                 className={`truncate block leading-tight ${
                                   isJourneyActive
-                                    ? 'text-[#E31837] font-bold'
-                                    : 'text-[#29251D] font-medium'
+                                    ? 'text-[#E31837] font-semibold'
+                                    : 'text-[#0B0B0C] font-medium'
                                 }`}
                               >
                                 {idx + 1}. {journey.name}
                               </span>
-                              <span className={`text-[10px] block ${isJourneyActive ? 'text-[#E31837]' : 'text-[#4D4D4F]'}`}>
+                              <span className={`text-[10px] block ${isJourneyActive ? 'text-[#E31837]' : 'text-[#626263]'}`}>
                                 {journey.scenarios.length} business scenarios
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {isOpen ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-[#4D4D4F]" />
+                                <ChevronDown className="w-3.5 h-3.5 text-[#626263]" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-[#4D4D4F]" />
+                                <ChevronRight className="w-3.5 h-3.5 text-[#626263]" />
                               )}
                             </div>
                           </button>
 
                           {isOpen && (
-                            <div className="px-2 pb-2 pt-1 space-y-1 bg-[#F6F2EA]/40 border-t border-[#E5DFD3]/60 max-h-64 overflow-y-auto">
+                            <div className="px-2 pb-2 pt-1 space-y-1 bg-[#F1F0EC]/40 border-t border-[#D3D2CE]/60 max-h-64 overflow-y-auto">
                               {journey.scenarios.map(scenario => {
                                 const isSelected = selectedScenario === scenario.scenarioId;
 
@@ -2715,19 +2831,19 @@ export default function App() {
                                     key={scenario.scenarioId}
                                     onClick={() => void handleScenarioSelect(scenario)}
                                     title={isSelected ? `Click to deselect ${scenario.label}` : `Click to select ${scenario.label}`}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] flex flex-col items-stretch gap-1 transition-colors cursor-pointer group ${
+                                    className={`w-full text-left px-2 py-1.5 rounded-xs text-[11px] flex flex-col items-stretch gap-1 transition-colors cursor-pointer group ${
                                       isSelected
-                                        ? 'bg-[#FFFFFF] text-[#E31837] font-semibold border border-[#E5DFD3] shadow-2xs ring-1 ring-[#E31837]/30'
-                                        : 'text-[#4D4D4F] hover:text-[#29251D] hover:bg-[#FFFFFF]/80'
+                                        ? 'bg-[#FFFFFF] text-[#E31837] font-semibold border border-[#D3D2CE] border-l-2 border-l-[#E31837]'
+                                        : 'text-[#626263] hover:text-[#0B0B0C] hover:bg-[#FFFFFF]/80'
                                     }`}
                                   >
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2 min-w-0 truncate pr-1">
                                         <span
-                                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
+                                          className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-xs border shrink-0 transition-colors ${
                                             isSelected
                                               ? 'bg-[#E31837] text-white border-[#E31837]'
-                                              : 'bg-[#FFFFFF] text-[#29251D] border-[#E5DFD3] group-hover:border-[#29251D]'
+                                              : 'bg-[#FFFFFF] text-[#0B0B0C] border-[#D3D2CE] group-hover:border-[#0B0B0C]'
                                           }`}
                                         >
                                           {scenario.scenarioId}
@@ -2739,7 +2855,7 @@ export default function App() {
                                         : <Check className="w-3.5 h-3.5 text-[#E31837] shrink-0 ml-1" />)}
                                     </div>
                                     {scenarioExplanation(scenario) && (
-                                      <p className={`text-[10px] leading-snug font-normal ${isSelected ? 'text-[#4D4D4F]' : 'text-[#8E8B82] group-hover:text-[#4D4D4F]'}`}>
+                                      <p className={`text-[10px] leading-snug font-normal ${isSelected ? 'text-[#626263]' : 'text-[#8F8F8D] group-hover:text-[#626263]'}`}>
                                         {scenarioExplanation(scenario)}
                                       </p>
                                     )}
@@ -2757,10 +2873,10 @@ export default function App() {
 
               {/* Type of data: the scenario's journey says which of these it supports (GET /catalog/scenarios/{id}) */}
               {activeDomain && useCaseId && selectedScenario && (
-                <div className="pt-2.5 border-t border-[#E5DFD3] animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="col-span-12 lg:col-span-5 wb-rise">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Layers className="w-3.5 h-3.5 text-[#E31837]" />
-                    <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                    <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                       Type of Data <span className="text-[#E31837]">*</span>
                     </label>
                   </div>
@@ -2779,14 +2895,14 @@ export default function App() {
                             setTypeOfData(option.value);
                           }}
                           title={supported ? option.hint : `${option.label} data is not available for this journey`}
-                          className={`text-left p-2 rounded-md border text-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                          className={`wb-choice text-left p-3 rounded-xs border text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                             active
-                              ? 'border-[#E31837] bg-[#FDF9F0] ring-1 ring-[#E31837] shadow-2xs'
-                              : 'border-[#E5DFD3] bg-white hover:border-[#29251D]'
+                              ? 'border-[#0B0B0C] bg-[#F8F7F4] is-on'
+                              : 'border-[#D3D2CE] bg-white hover:border-[#0B0B0C]'
                           }`}
                         >
-                          <span className="block font-semibold text-[#29251D]">{option.label}</span>
-                          <span className="block text-[10px] text-[#4D4D4F] leading-snug mt-0.5">{option.hint}</span>
+                          <span className="block font-semibold text-[#0B0B0C]">{option.label}</span>
+                          <span className="block text-[10px] text-[#626263] leading-snug mt-0.5">{option.hint}</span>
                         </button>
                       );
                     })}
@@ -2794,14 +2910,78 @@ export default function App() {
                 </div>
               )}
 
+              {/* How the schema is created: proposed for the scenario, or read from the user's own CSV (POST /scenario/import-csv) */}
+              {activeDomain && useCaseId && selectedScenario && (
+                <div className="col-span-12 lg:col-span-7 wb-rise">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#E31837]" />
+                    <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">Schema source</label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Schema source">
+                    {([
+                      { value: 'prompt', label: 'Propose for me', hint: 'The variables are proposed for this scenario' },
+                      { value: 'import', label: 'Upload a CSV', hint: 'Bring your own column names and types' }
+                    ] as const).map(option => {
+                      const active = inputMode === option.value;
+                      const isCsv = option.value === 'import';
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          disabled={isPipelineRunning}
+                          onClick={() => {
+                            if (active) return;
+                            resetPipeline();
+                            setInputMode(option.value);
+                          }}
+                          className={`text-left p-2.5 rounded-xs text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-techm ${
+                            isCsv
+                              ? 'wb-csv-card flex items-start gap-3'
+                              : `wb-choice border ${active ? 'border-[#0B0B0C] bg-[#F8F7F4] is-on' : 'border-[#D3D2CE] bg-white hover:border-[#0B0B0C]'}`
+                          }`}
+                        >
+                          {isCsv && (
+                            <span className="shrink-0 w-8 h-8 rounded-xs bg-[#E31837] flex items-center justify-center">
+                              <Upload className="w-4 h-4 text-white" />
+                            </span>
+                          )}
+                          <span className="min-w-0 block">
+                            <span className="flex items-center gap-2 font-semibold">
+                              <span className={isCsv ? 'text-white' : 'text-[#0B0B0C]'}>{option.label}</span>
+                              {isCsv && <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-[#E31837] border border-[#E31837]/60 px-1 py-px">Your data</span>}
+                            </span>
+                            <span className={`block text-[10px] leading-snug mt-0.5 ${isCsv ? 'text-[#F1F0EC]/60' : 'text-[#626263]'}`}>{option.hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {inputMode === 'import' && (
+                    <div className="mt-2">
+                      <CsvImportPanel
+                        file={csvFile}
+                        disabled={isPipelineRunning}
+                        onFile={file => {
+                          if (draft) resetPipeline(); // a different file means a new draft
+                          setCsvFile(file);
+                        }}
+                        onRefused={message => showToast(message, 'error')}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* DISABLED: the multi-modality picker: only structured data is generated for now, so it is always selected
               {/ * Multi-Modal Modalities Section: Displayed once user has selected Telecommunication, Use Case, and Customer Journey * /}
               {activeDomain && useCaseId && selectedScenario && (
-                <div className="relative pt-2.5 border-t border-[#E5DFD3] animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="relative pt-2.5 border-t border-[#D3D2CE] animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-[#E31837]" />
-                      <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                      <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                         Multi-Modal Modalities <span className="text-[#E31837]">*</span>
                       </label>
                     </div>
@@ -2812,7 +2992,7 @@ export default function App() {
                           setModalities({ structured: false, text: false, vision: false, telemetry: false });
                           showToast('Cleared all modalities');
                         }}
-                        className="text-[10px] text-[#4D4D4F] hover:text-[#29251D] underline cursor-pointer"
+                        className="text-[10px] text-[#626263] hover:text-[#0B0B0C] underline cursor-pointer"
                       >
                         Clear All
                       </button>
@@ -2823,12 +3003,12 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setModalitiesDropdownOpen(prev => !prev)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md border text-xs font-medium cursor-pointer transition-all bg-white shadow-2xs ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xs border text-xs font-medium cursor-pointer transition-all bg-white ${
                     modalitiesDropdownOpen
-                      ? 'border-[#E31837] ring-1 ring-[#E31837]/30'
+                      ? 'border-[#E31837]'
                       : !Object.values(modalities).some(Boolean)
-                        ? 'border-amber-300 bg-amber-50/20 hover:border-[#29251D]'
-                        : 'border-[#E5DFD3] hover:border-[#29251D]'
+                        ? 'border-amber-300 bg-amber-50/20 hover:border-[#0B0B0C]'
+                        : 'border-[#D3D2CE] hover:border-[#0B0B0C]'
                   }`}
                   aria-expanded={modalitiesDropdownOpen}
                 >
@@ -2841,39 +3021,39 @@ export default function App() {
                     ) : (
                       <div className="flex flex-wrap items-center gap-1">
                         {modalities.text && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#247153]/10 text-[#247153] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-[#247153]/10 text-[#247153] text-[10px] font-semibold">
                             <FileText className="w-2.5 h-2.5" /> Unstructured Data
                           </span>
                         )}
                         {modalities.structured && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#185F8D]/10 text-[#185F8D] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-[#185F8D]/10 text-[#185F8D] text-[10px] font-semibold">
                             <Table className="w-2.5 h-2.5" /> Structured Data
                           </span>
                         )}
                         {modalities.vision && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#8A5200]/10 text-[#8A5200] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-[#8A5200]/10 text-[#8A5200] text-[10px] font-semibold">
                             <ImageIcon className="w-2.5 h-2.5" /> Image
                           </span>
                         )}
                         {modalities.telemetry && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#9C1936]/10 text-[#9C1936] text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-[#9C1936]/10 text-[#9C1936] text-[10px] font-semibold">
                             <Video className="w-2.5 h-2.5" /> Video
                           </span>
                         )}
-                        <span className="text-[10px] text-[#4D4D4F] font-semibold ml-0.5">
+                        <span className="text-[10px] text-[#626263] font-semibold ml-0.5">
                           ({Object.values(modalities).filter(Boolean).length} selected)
                         </span>
                       </div>
                     )}
                   </div>
-                  <ChevronDown className={`w-3.5 h-3.5 text-[#4D4D4F] transition-transform duration-200 shrink-0 ${modalitiesDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-[#626263] transition-transform duration-200 shrink-0 ${modalitiesDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/ * Dropdown Multi-Select Menu * /}
                 {modalitiesDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-[#E5DFD3] rounded-md shadow-lg p-2 space-y-1.5 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-[#E5DFD3] text-[10px]">
-                      <span className="font-semibold text-[#29251D] uppercase tracking-wider">
+                  <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] p-2 space-y-1.5 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#D3D2CE] text-[10px]">
+                      <span className="font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
                         Select Modalities
                       </span>
                       <div className="flex items-center gap-2">
@@ -2887,14 +3067,14 @@ export default function App() {
                         >
                           Select All
                         </button>
-                        <span className="text-[#E5DFD3]">|</span>
+                        <span className="text-[#D3D2CE]">|</span>
                         <button
                           type="button"
                           onClick={() => {
                             setModalities({ structured: false, text: false, vision: false, telemetry: false });
                             showToast('Reset modalities');
                           }}
-                          className="text-[#4D4D4F] hover:underline cursor-pointer"
+                          className="text-[#626263] hover:underline cursor-pointer"
                         >
                           Clear
                         </button>
@@ -2904,105 +3084,105 @@ export default function App() {
                     <div className="space-y-1 max-h-56 overflow-y-auto pt-0.5">
                       {/ * 1. Unstructured Data * /}
                       <label
-                        className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
+                        className={`flex items-center justify-between p-2 rounded-xs border cursor-pointer transition-colors ${
                           modalities.text
                             ? 'bg-[#247153]/10 border-[#247153]/40'
-                            : 'bg-[#F6F2EA]/40 border-[#E5DFD3] hover:bg-[#F6F2EA]'
+                            : 'bg-[#F1F0EC]/40 border-[#D3D2CE] hover:bg-[#F1F0EC]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-[#247153]" />
                           <div>
-                            <p className="font-semibold text-xs text-[#29251D]">Unstructured Data</p>
-                            <p className="text-[10px] text-[#4D4D4F]">Customer chat & USSD transcripts</p>
+                            <p className="font-semibold text-xs text-[#0B0B0C]">Unstructured Data</p>
+                            <p className="text-[10px] text-[#626263]">Customer chat & USSD transcripts</p>
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={modalities.text}
                           onChange={e => setModalities(m => ({ ...m, text: e.target.checked }))}
-                          className="rounded accent-[#E31837] w-4 h-4 cursor-pointer"
+                          className="rounded-xs accent-[#E31837] w-4 h-4 cursor-pointer"
                         />
                       </label>
 
                       {/ * 2. Structured Data * /}
                       <label
-                        className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
+                        className={`flex items-center justify-between p-2 rounded-xs border cursor-pointer transition-colors ${
                           modalities.structured
                             ? 'bg-[#185F8D]/10 border-[#185F8D]/40'
-                            : 'bg-[#F6F2EA]/40 border-[#E5DFD3] hover:bg-[#F6F2EA]'
+                            : 'bg-[#F1F0EC]/40 border-[#D3D2CE] hover:bg-[#F1F0EC]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Table className="w-4 h-4 text-[#185F8D]" />
                           <div>
-                            <p className="font-semibold text-xs text-[#29251D]">Structured Data</p>
-                            <p className="text-[10px] text-[#4D4D4F]">Parquet & Arrow IPC buffers</p>
+                            <p className="font-semibold text-xs text-[#0B0B0C]">Structured Data</p>
+                            <p className="text-[10px] text-[#626263]">Parquet & Arrow IPC buffers</p>
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={modalities.structured}
                           onChange={e => setModalities(m => ({ ...m, structured: e.target.checked }))}
-                          className="rounded accent-[#E31837] w-4 h-4 cursor-pointer"
+                          className="rounded-xs accent-[#E31837] w-4 h-4 cursor-pointer"
                         />
                       </label>
 
                       {/ * 3. Image * /}
                       <label
-                        className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
+                        className={`flex items-center justify-between p-2 rounded-xs border cursor-pointer transition-colors ${
                           modalities.vision
                             ? 'bg-[#8A5200]/10 border-[#8A5200]/40'
-                            : 'bg-[#F6F2EA]/40 border-[#E5DFD3] hover:bg-[#F6F2EA]'
+                            : 'bg-[#F1F0EC]/40 border-[#D3D2CE] hover:bg-[#F1F0EC]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <ImageIcon className="w-4 h-4 text-[#8A5200]" />
                           <div>
-                            <p className="font-semibold text-xs text-[#29251D]">Image</p>
-                            <p className="text-[10px] text-[#4D4D4F]">Synthetic ID/KYC cards & portraits</p>
+                            <p className="font-semibold text-xs text-[#0B0B0C]">Image</p>
+                            <p className="text-[10px] text-[#626263]">Synthetic ID/KYC cards & portraits</p>
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={modalities.vision}
                           onChange={e => setModalities(m => ({ ...m, vision: e.target.checked }))}
-                          className="rounded accent-[#E31837] w-4 h-4 cursor-pointer"
+                          className="rounded-xs accent-[#E31837] w-4 h-4 cursor-pointer"
                         />
                       </label>
 
                       {/ * 4. Video * /}
                       <label
-                        className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
+                        className={`flex items-center justify-between p-2 rounded-xs border cursor-pointer transition-colors ${
                           modalities.telemetry
                             ? 'bg-[#9C1936]/10 border-[#9C1936]/40'
-                            : 'bg-[#F6F2EA]/40 border-[#E5DFD3] hover:bg-[#F6F2EA]'
+                            : 'bg-[#F1F0EC]/40 border-[#D3D2CE] hover:bg-[#F1F0EC]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Video className="w-4 h-4 text-[#9C1936]" />
                           <div>
-                            <p className="font-semibold text-xs text-[#29251D]">Video</p>
-                            <p className="text-[10px] text-[#4D4D4F]">Synthetic video motion & frame sequences</p>
+                            <p className="font-semibold text-xs text-[#0B0B0C]">Video</p>
+                            <p className="text-[10px] text-[#626263]">Synthetic video motion & frame sequences</p>
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={modalities.telemetry}
                           onChange={e => setModalities(m => ({ ...m, telemetry: e.target.checked }))}
-                          className="rounded accent-[#E31837] w-4 h-4 cursor-pointer"
+                          className="rounded-xs accent-[#E31837] w-4 h-4 cursor-pointer"
                         />
                       </label>
                     </div>
 
-                    <div className="pt-1.5 border-t border-[#E5DFD3] flex items-center justify-between">
-                      <span className="text-[10px] text-[#8E8B82]">
+                    <div className="pt-1.5 border-t border-[#D3D2CE] flex items-center justify-between">
+                      <span className="text-[10px] text-[#8F8F8D]">
                         {Object.values(modalities).filter(Boolean).length} of 4 chosen
                       </span>
                       <button
                         type="button"
                         onClick={() => setModalitiesDropdownOpen(false)}
-                        className="px-2.5 py-1 text-[11px] font-semibold bg-[#29251D] text-white rounded hover:bg-black cursor-pointer shadow-2xs"
+                        className="px-2.5 py-1 text-[11px] font-semibold bg-[#0B0B0C] text-white rounded-xs hover:bg-black cursor-pointer "
                       >
                         Done
                       </button>
@@ -3015,7 +3195,7 @@ export default function App() {
 
               {/* Pipeline Run / Proceed Action Button */}
               {activeDomain && (
-                <div className="pt-2.5 border-t border-[#E5DFD3] space-y-2">
+                <div className="col-span-12 sticky -bottom-3 -mx-3 -mb-3 px-3 py-2.5 bg-white/95 backdrop-blur-xs border-t border-[#D3D2CE] space-y-2 z-10">
                   {(() => {
                     const hasSelectedModality = true; // structured data is always selected
                     const canProceed = Boolean(
@@ -3025,26 +3205,24 @@ export default function App() {
                       typeOfData &&
                       !isScenarioLoading &&
                       hasSelectedModality &&
-                      !isPipelineRunning
+                      !isPipelineRunning &&
+                      (inputMode !== 'import' || csvFile)
                     );
+                    const importing = inputMode === 'import';
 
                     return (
                       <>
                         <button
                           onClick={() => {
                             if (!pipelineRun) {
-                              void handleRunPipeline();
+                              void (importing ? handleImportCsv() : handleRunPipeline());
                               return;
                             }
                             setMaxUnlockedStep(prev => Math.max(prev, 2) as 1 | 2 | 3);
                             setWorkflowStep(2);
                           }}
                           disabled={!canProceed}
-                          className={`w-full py-2.5 px-3 rounded-md text-xs font-semibold shadow-xs flex items-center justify-center gap-2 transition-all focus-techm ${
-                            !canProceed
-                              ? 'bg-[#E5DFD3] text-[#8E8B82] cursor-not-allowed border border-[#D8D1C3]'
-                              : 'bg-[#E31837] hover:bg-[#b5122b] text-white cursor-pointer ring-2 ring-[#E31837]/20 shadow-xs'
-                          }`}
+                          className="wb-btn w-full h-10 px-4 text-[13px] focus-techm"
                           title={
                             !useCaseId
                               ? 'Select a use case from the dropdown above'
@@ -3052,24 +3230,22 @@ export default function App() {
                                 ? 'Select a customer journey scenario above'
                                 : isScenarioLoading
                                   ? 'Loading the selected scenario...'
+                                  : importing && !csvFile
+                                    ? 'Choose the CSV file that defines the variables'
                                   : !hasSelectedModality
                                   ? 'Select at least 1 modality type above to activate this button'
                                   : isPipelineRunning
                                     ? 'Synthesizing Pipeline...'
-                                    : 'Proceed to Schema (Pane 2)'
+                                    : 'Continue to schema'
                           }
                         >
                           {isPipelineRunning ? (
                             <>
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Synthesizing Pipeline...</span>
+                              <span>{importing ? 'Reading the CSV...' : 'Synthesizing Pipeline...'}</span>
                             </>
                           ) : (
-                            <>
-                              <Zap className={`w-3.5 h-3.5 ${canProceed ? 'fill-white text-white' : 'text-[#8E8B82]'}`} />
-                              <span>Proceed to Schema (Pane 2)</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </>
+                            <BtnLabel>{importing && !pipelineRun ? 'Import CSV & review schema' : 'Continue to schema'}</BtnLabel>
                           )}
                         </button>
                       </>
@@ -3084,47 +3260,47 @@ export default function App() {
               PANE 2: INTEGRATED PIPELINE CANVAS & WORKBENCH (Hidden until Step 1 complete)
               ===================================================================== */}
           <section className={`${
-            maxUnlockedStep < 2
+            workflowStep < 2 || maxUnlockedStep < 2
               ? 'hidden'
-              : pane3Collapsed
-                ? 'col-span-9'
-                : maxUnlockedStep === 2
-                  ? 'col-span-8'
-                  : 'col-span-6'
-          } h-full flex flex-col bg-[#FFFFFF] border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${
-            workflowStep === 2 ? 'ring-2 ring-[#E31837]/30' : ''
+              : workflowStep === 2
+                ? 'col-span-12'
+                : pane3Collapsed
+                  ? 'col-span-11'
+                  : 'col-span-9 2xl:col-span-8'
+          } h-full wb-pane flex flex-col bg-[#FFFFFF] border border-[#D3D2CE] rounded-xs overflow-hidden transition-all ${
+            workflowStep === 2 ? 'border-t-2 border-t-[#E31837]' : ''
           }`}>
             {/* Dynamic Stage Workspace Body */}
             <div className="flex-1 overflow-y-auto p-3">
               {!activeDomain ? (
-                <div className="h-full min-h-[420px] flex flex-col items-center justify-center p-8 text-center bg-[#F6F2EA]/40 border border-dashed border-[#E5DFD3] rounded-lg">
-                  <div className="w-14 h-14 rounded-full bg-white border border-[#E5DFD3] flex items-center justify-center mb-3 shadow-2xs">
+                <div className="h-full min-h-[420px] flex flex-col items-center justify-center p-8 text-center bg-[#F1F0EC]/40 border border-dashed border-[#D3D2CE] rounded-xs">
+                  <div className="w-14 h-14 rounded-xs bg-white border border-[#D3D2CE] flex items-center justify-center mb-3 ">
                     <Sliders className="w-6 h-6 text-[#E31837]" />
                   </div>
-                  <h3 className="text-sm font-bold text-[#29251D] tracking-tight">
+                  <h3 className="text-sm font-semibold text-[#0B0B0C] tracking-tight">
                     Synthesis Pipeline Canvas
                   </h3>
                 </div>
               ) : !pipelineRun ? (
-                <div className="h-full min-h-[420px] flex flex-col items-center justify-center p-8 text-center bg-[#F6F2EA]/40 border border-dashed border-[#E5DFD3] rounded-lg">
-                  <div className="w-14 h-14 rounded-full bg-white border border-[#E5DFD3] flex items-center justify-center mb-3 shadow-2xs">
+                <div className="h-full min-h-[420px] flex flex-col items-center justify-center p-8 text-center bg-[#F1F0EC]/40 border border-dashed border-[#D3D2CE] rounded-xs">
+                  <div className="w-14 h-14 rounded-xs bg-white border border-[#D3D2CE] flex items-center justify-center mb-3 ">
                     <Zap className="w-6 h-6 text-[#E31837]" />
                   </div>
-                  <h3 className="text-sm font-bold text-[#29251D] mb-3 tracking-tight">
+                  <h3 className="text-sm font-semibold text-[#0B0B0C] mb-3 tracking-tight">
                     {isPipelineRunning ? 'Executing 5-Stage Synthesis Pipeline...' : 'Pipeline Synthesis Canvas'}
                   </h3>
 
                   {/* Customer Journey Selection Card - Dynamic Selection State */}
-                  <div className="w-full max-w-lg p-3 bg-white border border-[#E5DFD3] rounded-lg shadow-2xs text-left">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider mb-2">
+                  <div className="w-full max-w-lg p-3 bg-white border border-[#D3D2CE] rounded-xs text-left">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] mb-2 font-mono">
                       <div className="flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-[#E31837]" />
                         <span>Selected Customer Journey</span>
                       </div>
-                      <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-xs font-medium ${
                         selectedScenario
-                          ? 'bg-[#E31837]/10 text-[#E31837] font-bold'
-                          : 'bg-[#F6F2EA] text-[#4D4D4F] border border-[#E5DFD3]'
+                          ? 'bg-[#E31837]/10 text-[#E31837] font-semibold'
+                          : 'bg-[#F1F0EC] text-[#626263] border border-[#D3D2CE]'
                       }`}>
                         {selectedScenario ? (scenarioDetail?.label ?? selectedScenario) : 'Not Selected (Default)'}
                       </span>
@@ -3134,24 +3310,24 @@ export default function App() {
                       const journeyIndex = customerJourneys.findIndex(j => j.scenarios.some(s => s.scenarioId === selectedScenario));
                       const parentJourney = journeyIndex >= 0 ? customerJourneys[journeyIndex] : undefined;
                       return (
-                        <div className="p-3 rounded-md border border-[#E31837] bg-[#FDF9F0] shadow-2xs ring-1 ring-[#E31837]">
+                        <div className="p-3 rounded-xs border border-[#0B0B0C] bg-[#F8F7F4]">
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-[#E31837] text-white text-[11px] font-mono font-bold flex items-center justify-center shadow-2xs">
+                              <span className="w-5 h-5 rounded-xs bg-[#E31837] text-white text-[11px] font-mono font-medium flex items-center justify-center ">
                                 {journeyIndex + 1 || 1}
                               </span>
-                              <span className="text-xs font-bold text-[#29251D]">
+                              <span className="text-xs font-semibold text-[#0B0B0C]">
                                 {parentJourney?.name ?? 'Customer Journey'}
                               </span>
                             </div>
                           </div>
-                          <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2">
+                          <p className="text-[11px] text-[#626263] leading-relaxed mb-2">
                             {scenarioExplanation(scenarioDetail) || (isScenarioLoading ? 'Loading the scenario description...' : 'No description is configured for this scenario.')}
                           </p>
-                          <div className="flex items-center justify-between pt-2 border-t border-[#E5DFD3] text-[11px]">
-                            <span className="text-[#4D4D4F]">
+                          <div className="flex items-center justify-between pt-2 border-t border-[#D3D2CE] text-[11px]">
+                            <span className="text-[#626263]">
                               Scenario:{' '}
-                              <strong className="text-[#29251D] font-mono font-semibold">
+                              <strong className="text-[#0B0B0C] font-mono font-medium">
                                 {scenarioDetail?.label ?? selectedScenario}
                               </strong>
                             </span>
@@ -3163,18 +3339,18 @@ export default function App() {
                         </div>
                       );
                     })() : (
-                      <div className="p-3.5 rounded-md border border-dashed border-[#E5DFD3] bg-[#F6F2EA]/40 text-center">
-                        <div className="text-xs font-semibold text-[#29251D] mb-1">
+                      <div className="p-3.5 rounded-xs border border-dashed border-[#D3D2CE] bg-[#F1F0EC]/40 text-center">
+                        <div className="text-xs font-semibold text-[#0B0B0C] mb-1">
                           {useCaseId
                             ? (catalog.useCases.find(item => item.id === useCaseId)?.name ?? 'Use Case')
                             : 'No Use Case Selected'}
                         </div>
-                        <p className="text-[11px] text-[#4D4D4F] leading-relaxed mb-2 max-w-sm mx-auto">
+                        <p className="text-[11px] text-[#626263] leading-relaxed mb-2 max-w-sm mx-auto">
                           {useCaseId
-                            ? 'Select a scenario from Pane 1 to configure your synthesis requirements.'
-                            : 'Select a use case from Pane 1 to load customer journeys and scenarios.'}
+                            ? 'Select a scenario in step 1 to configure your synthesis requirements.'
+                            : 'Select a use case in step 1 to load customer journeys and scenarios.'}
                         </p>
-                        <div className="inline-flex items-center gap-1 text-[10px] font-mono text-[#4D4D4F] bg-white border border-[#E5DFD3] px-2 py-0.5 rounded shadow-2xs">
+                        <div className="inline-flex items-center gap-1 text-[10px] font-mono text-[#626263] bg-white border border-[#D3D2CE] px-2 py-0.5 rounded-xs ">
                           <span>{useCaseId ? 'Awaiting Scenario Selection' : 'Awaiting Use Case Selection'}</span>
                         </div>
                       </div>
@@ -3183,7 +3359,7 @@ export default function App() {
 
                   {isPipelineRunning && (
                     <div className="w-full max-w-xs space-y-2 mt-4">
-                      <div className="w-full bg-[#E5DFD3] h-2 rounded-full overflow-hidden">
+                      <div className="w-full bg-[#D3D2CE] h-2 rounded-full overflow-hidden">
                         <div className="bg-[#E31837] h-full rounded-full animate-pulse w-3/4"></div>
                       </div>
                       <div className="flex items-center justify-center gap-2 text-xs font-mono text-[#E31837]">
@@ -3198,12 +3374,12 @@ export default function App() {
               {/* Schema <-> generated records switch (shown once POST /scenario/generate has returned) */}
               {generated && (activeTab === 'table' || activeTab === 'records') && (
                 <div className="flex items-center justify-between pb-2">
-                  <div className="inline-flex items-center p-0.5 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md">
+                  <div className="inline-flex items-center p-0.5 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs">
                     <button
                       type="button"
                       onClick={() => setActiveTab('table')}
-                      className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
-                        activeTab === 'table' ? 'bg-white text-[#29251D] font-bold shadow-2xs' : 'text-[#4D4D4F] hover:text-[#29251D] font-medium'
+                      className={`px-3 py-1 rounded-xs text-xs transition-all cursor-pointer ${
+                        activeTab === 'table' ? 'bg-white text-[#0B0B0C] font-semibold ' : 'text-[#626263] hover:text-[#0B0B0C] font-medium'
                       }`}
                     >
                       Schema ({fields.length} Fields)
@@ -3211,8 +3387,8 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setActiveTab('records')}
-                      className={`px-3 py-1 rounded text-xs transition-all cursor-pointer ${
-                        activeTab === 'records' ? 'bg-white text-[#29251D] font-bold shadow-2xs' : 'text-[#4D4D4F] hover:text-[#29251D] font-medium'
+                      className={`px-3 py-1 rounded-xs text-xs transition-all cursor-pointer ${
+                        activeTab === 'records' ? 'bg-white text-[#0B0B0C] font-semibold ' : 'text-[#626263] hover:text-[#0B0B0C] font-medium'
                       }`}
                     >
                       Generated Data ({generated.total_records.toLocaleString()} records)
@@ -3227,15 +3403,33 @@ export default function App() {
               {/* TAB 1: DATA CONTRACT TABLE */}
               {activeTab === 'table' && (
                 <div className="space-y-3">
+                  {workflowStep === 2 && (
+                    <div className="pb-3 mb-1 border-b border-[#D3D2CE]">
+                      <p className="wb-cap text-[#626263]">Step 02 of 03</p>
+                      <h2 className="mt-2 text-[26px] font-medium leading-[1.05] tracking-[-0.035em]">Review the variables we will generate.</h2>
+                      <p className="mt-1.5 max-w-[70ch] text-[13px] leading-snug text-[#626263]">
+                        Every row becomes a column in your data. Add, edit or remove variables, then approve the schema to move on.
+                      </p>
+                    </div>
+                  )}
                   {/* Clean Table Action Bar */}
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-bold text-[#29251D] uppercase tracking-wider">
+                      <h3 className="text-xs font-medium text-[#0B0B0C] uppercase tracking-[0.06em] font-mono">
                         Standard Flow Schema Variables
                       </h3>
-                      <span className="text-[10px] font-mono text-[#247153] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-medium">
+                      <span className="text-[10px] font-mono text-[#247153] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-xs font-medium">
                         {fields.length} Fields Active
                       </span>
+                      {csvImport && (
+                        <span
+                          className="inline-flex items-center gap-1 max-w-[16rem] text-[10px] font-mono text-[#185F8D] bg-[#185F8D]/10 border border-[#185F8D]/25 px-1.5 py-0.5 rounded-xs font-medium"
+                          title={`The variables were read from ${csvImport.fileName}`}
+                        >
+                          <FileText className="w-3 h-3 shrink-0" />
+                          <span className="truncate">From {csvImport.fileName}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -3248,7 +3442,7 @@ export default function App() {
                             ? 'Tick one or more variables to delete them'
                             : `Delete the ${checkedFields.length} selected variable${checkedFields.length === 1 ? '' : 's'}`
                         }
-                        className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#9C1936] hover:bg-red-50 text-[#9C1936] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#E5DFD3] disabled:hover:bg-white"
+                        className="px-2.5 py-1 text-xs rounded-xs bg-white border border-[#D3D2CE] hover:border-[#9C1936] hover:bg-red-50 text-[#9C1936] font-medium flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#D3D2CE] disabled:hover:bg-white"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>{checkedFields.length > 0 ? `Delete selected (${checkedFields.length})` : 'Delete selected'}</span>
@@ -3257,7 +3451,7 @@ export default function App() {
                         onClick={() => setVariableModal({ mode: 'add' })}
                         disabled={!canReview}
                         title={canReview ? 'Add a variable of your own to the schema' : 'The schema is approved; run the pipeline again to change variables'}
-                        className="px-2.5 py-1 text-xs rounded bg-white border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-2.5 py-1 text-xs rounded-xs bg-white border border-[#D3D2CE] hover:border-[#0B0B0C] text-[#0B0B0C] font-medium flex items-center gap-1.5 cursor-pointer hover:bg-[#F1F0EC] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <Plus className="w-3.5 h-3.5 text-[#E31837]" />
                         <span>Add variable</span>
@@ -3266,7 +3460,7 @@ export default function App() {
                     {/* DISABLED: 'Recommended Variables' dialog: not backed by the API yet
                     <button
                       onClick={() => setShowRecommendModal(true)}
-                      className="px-2.5 py-1 text-xs rounded bg-[#FFFFFF] border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs hover:bg-[#F6F2EA] transition-colors"
+                      className="px-2.5 py-1 text-xs rounded-xs bg-[#FFFFFF] border border-[#D3D2CE] hover:border-[#0B0B0C] text-[#0B0B0C] font-medium flex items-center gap-1.5 cursor-pointer hover:bg-[#F1F0EC] transition-colors"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-[#E31837]" />
                       <span>Recommended Variables</span>
@@ -3277,62 +3471,62 @@ export default function App() {
                   {/* DISABLED: adding a field by hand is not supported for a source-backed schema
                   {/ * Add Field Form (collapsible) * /}
                   {isAddingField && (
-                    <div className="p-3 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md space-y-2 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-[#29251D]">
+                    <div className="p-3 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-semibold text-[#0B0B0C]">
                         <span>Add New Field to Data Contract</span>
-                        <button onClick={() => setIsAddingField(false)} aria-label="Cancel adding field" className="text-[#4D4D4F] hover:text-[#29251D]">
+                        <button onClick={() => setIsAddingField(false)} aria-label="Cancel adding field" className="text-[#626263] hover:text-[#0B0B0C]">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
                         <div>
-                          <label className="text-[10px] text-[#4D4D4F] uppercase font-mono">Field Name</label>
+                          <label className="text-[10px] text-[#626263] uppercase font-mono">Field Name</label>
                           <input
                             type="text"
                             value={newFieldName}
                             onChange={e => setNewFieldName(e.target.value)}
                             placeholder="e.g. sim_slot_index"
-                            className="w-full p-1 bg-white border border-[#E5DFD3] rounded text-xs focus-techm"
+                            className="w-full p-1 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-[#4D4D4F] uppercase font-mono">Physical Type</label>
+                          <label className="text-[10px] text-[#626263] uppercase font-mono">Physical Type</label>
                           <input
                             type="text"
                             value={newFieldType}
                             onChange={e => setNewFieldType(e.target.value)}
-                            className="w-full p-1 bg-white border border-[#E5DFD3] rounded text-xs focus-techm font-mono"
+                            className="w-full p-1 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm font-mono"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-[#4D4D4F] uppercase font-mono">Standard Ref</label>
+                          <label className="text-[10px] text-[#626263] uppercase font-mono">Standard Ref</label>
                           <input
                             type="text"
                             value={newFieldStandard}
                             onChange={e => setNewFieldStandard(e.target.value)}
-                            className="w-full p-1 bg-white border border-[#E5DFD3] rounded text-xs focus-techm"
+                            className="w-full p-1 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm"
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-[#4D4D4F] uppercase font-mono">Constraint</label>
+                          <label className="text-[10px] text-[#626263] uppercase font-mono">Constraint</label>
                           <input
                             type="text"
                             value={newFieldConstraint}
                             onChange={e => setNewFieldConstraint(e.target.value)}
-                            className="w-full p-1 bg-white border border-[#E5DFD3] rounded text-xs focus-techm"
+                            className="w-full p-1 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm"
                           />
                         </div>
                       </div>
                       <div className="flex justify-end gap-2 pt-1">
                         <button
                           onClick={() => setIsAddingField(false)}
-                          className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#4D4D4F]"
+                          className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#626263]"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={handleAddField}
-                          className="px-3 py-1 text-xs bg-[#E31837] text-white rounded font-medium shadow-xs"
+                          className="px-3 py-1 text-xs bg-[#E31837] text-white rounded-xs font-medium "
                         >
                           Save Field
                         </button>
@@ -3341,10 +3535,10 @@ export default function App() {
                   )}
                   */}
                   {/* High-Density Data Contract Table */}
-                  <div className="border border-[#E5DFD3] rounded-md overflow-auto max-h-[60vh] bg-white">
-                    <table className="w-full min-w-[820px] text-left text-xs border-collapse">
+                  <div className="border border-[#D3D2CE] rounded-xs overflow-auto max-h-[60vh] bg-white">
+                    <table className="w-full min-w-[820px] text-left text-[12px] border-collapse">
                       <thead>
-                        <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F] font-mono text-[11px]">
+                        <tr className="bg-[#F1F0EC] border-b border-[#D3D2CE] text-[#626263] font-mono text-[11px]">
                           <th className="py-2 pl-3 pr-1 w-8">
                             <input
                               type="checkbox"
@@ -3369,12 +3563,12 @@ export default function App() {
                           <th className="py-2 px-2 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E5DFD3]">
+                      <tbody className="divide-y divide-[#D3D2CE]">
                         {filteredFields.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="text-center py-8 text-xs text-[#8E8B82] bg-white">
-                              <p className="font-semibold text-[#29251D] mb-1">No data contract fields match current filter</p>
-                              <p className="text-[11px] text-[#4D4D4F] mb-3">
+                            <td colSpan={9} className="text-center py-8 text-xs text-[#8F8F8D] bg-white">
+                              <p className="font-semibold text-[#0B0B0C] mb-1">No data contract fields match current filter</p>
+                              <p className="text-[11px] text-[#626263] mb-3">
                                 {fieldFilter === 'flagged'
                                   ? 'All AST constraints are repaired and passing. There are no flagged warnings.'
                                   : 'No fields match the active search or filter criteria.'}
@@ -3382,7 +3576,7 @@ export default function App() {
                               {fieldFilter !== 'all' && (
                                 <button
                                   onClick={() => setFieldFilter('all')}
-                                  className="px-3 py-1 bg-white border border-[#E5DFD3] hover:border-[#29251D] text-[#29251D] font-medium rounded text-xs transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5"
+                                  className="px-3 py-1 bg-white border border-[#D3D2CE] hover:border-[#0B0B0C] text-[#0B0B0C] font-medium rounded-xs text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
                                 >
                                   <span>View All Fields</span>
                                 </button>
@@ -3390,15 +3584,16 @@ export default function App() {
                             </td>
                           </tr>
                         ) : (
-                          filteredFields.map(field => {
+                          filteredFields.map((field, rowIdx) => {
                           const isFlagged = field.qaStatus === 'FLAGGED';
                           return (
                             <tr
                               key={field.id}
                               onClick={() => setSelectedFieldId(field.id)}
-                              className={`hover:bg-[#F6F2EA]/60 transition-colors cursor-pointer ${
+                              style={{ '--i': Math.min(rowIdx, 12) } as React.CSSProperties}
+                              className={`wb-row hover:bg-[#F1F0EC]/60 transition-colors cursor-pointer ${
                                 isFlagged ? 'bg-amber-50/50' : ''
-                              } ${selectedFieldId === field.id ? 'bg-[#F6F2EA]' : ''} ${checkedFieldIds.includes(field.id) && !field.required ? 'bg-red-50/60' : ''}`}
+                              } ${selectedFieldId === field.id ? 'bg-[#F1F0EC]' : ''} ${checkedFieldIds.includes(field.id) && !field.required ? 'bg-red-50/60' : ''}`}
                             >
                               <td className="py-2 pl-3 pr-1 w-8" onClick={e => e.stopPropagation()}>
                                 <input
@@ -3411,9 +3606,9 @@ export default function App() {
                                   className="w-3.5 h-3.5 accent-[#E31837] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                 />
                               </td>
-                              <td className="py-2 px-2 font-mono text-[11px] text-[#8E8B82]">{fields.findIndex(f => f.id === field.id) + 1}</td>
+                              <td className="py-2 px-2 font-mono text-[11px] text-[#8F8F8D]">{fields.findIndex(f => f.id === field.id) + 1}</td>
 
-                              <td className="py-2 px-3 font-mono font-semibold text-[#29251D]">
+                              <td className="py-2 px-3 font-mono font-medium text-[#0B0B0C]">
                                 <div className="flex items-center gap-1.5">
                                   {isFlagged ? (
                                     <AlertTriangle className="w-3.5 h-3.5 text-[#8A5200] shrink-0" />
@@ -3424,20 +3619,20 @@ export default function App() {
                                 </div>
                               </td>
 
-                              <td className="py-2 px-3 text-[#4D4D4F]">
+                              <td className="py-2 px-3 text-[#626263]">
                                 <span
-                                  className="inline-block max-w-[150px] truncate align-middle whitespace-nowrap px-1.5 py-0.5 rounded bg-[#F6F2EA] border border-[#E5DFD3] text-[11px]"
+                                  className="inline-block max-w-[150px] truncate align-middle whitespace-nowrap px-1.5 py-0.5 rounded-xs bg-[#F1F0EC] border border-[#D3D2CE] text-[11px]"
                                   title={field.standardRef}
                                 >
                                   {field.standardRef}
                                 </span>
                               </td>
 
-                              <td className="py-2 px-3 font-mono text-[#29251D]">
+                              <td className="py-2 px-3 font-mono text-[#0B0B0C]">
                                 <span className="block truncate max-w-[130px] text-[#185F8D] font-medium" title={field.physicalType}>{field.physicalType}</span>
                               </td>
 
-                              <td className="py-2 px-3 text-[#4D4D4F] font-mono text-[11px]">
+                              <td className="py-2 px-3 text-[#626263] font-mono text-[11px]">
                                 <div className="truncate max-w-[200px]" title={field.constraints}>
                                   {field.constraints}
                                 </div>
@@ -3446,14 +3641,14 @@ export default function App() {
                               <td className="py-2 px-3">
                                 <span
                                   title={field.sensitivity}
-                                  className={`inline-block max-w-[120px] truncate align-middle whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded font-medium border ${
+                                  className={`inline-block max-w-[120px] truncate align-middle whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded-xs font-medium border ${
                                     field.sensitivity.includes('PII')
                                       ? 'bg-red-50 text-[#9C1936] border-red-200'
                                       : field.sensitivity.includes('Financial')
                                       ? 'bg-amber-50 text-[#8A5200] border-amber-200'
                                       : field.sensitivity.includes('Synthetic')
                                       ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                      : 'bg-slate-50 text-[#4D4D4F] border-[#E5DFD3]'
+                                      : 'bg-[#F8F7F4] text-[#626263] border-[#D3D2CE]'
                                   }`}
                                 >
                                   {field.sensitivity}
@@ -3462,15 +3657,15 @@ export default function App() {
 
                               <td className="py-2 px-3">
                                 {isFlagged ? (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-[#8A5200] font-semibold text-[10px] border border-amber-300">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-amber-100 text-[#8A5200] font-semibold text-[10px] border border-amber-300">
                                     <AlertTriangle className="w-3 h-3" /> FLAGGED
                                   </span>
                                 ) : field.qaStatus === 'RESOLVED' ? (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-[#247153] font-semibold text-[10px] border border-emerald-300">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-emerald-100 text-[#247153] font-semibold text-[10px] border border-emerald-300">
                                     <Check className="w-3 h-3" /> RESOLVED
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-[#247153] font-medium text-[10px] border border-emerald-200">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-emerald-50 text-[#247153] font-medium text-[10px] border border-emerald-200">
                                     <Check className="w-3 h-3" /> PASS
                                   </span>
                                 )}
@@ -3486,7 +3681,7 @@ export default function App() {
                                     disabled={!canReview}
                                     title={canReview ? 'Edit this variable' : 'The schema is approved; run the pipeline again to change variables'}
                                     aria-label={`Edit ${field.name}`}
-                                    className="p-1 rounded text-[#4D4D4F] hover:text-[#29251D] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="p-1 rounded-xs text-[#626263] hover:text-[#0B0B0C] hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     <Edit3 className="w-3 h-3" />
                                   </button>
@@ -3504,22 +3699,22 @@ export default function App() {
               {/* DISABLED: ER graph, Pandera AST and stage-log tabs showed fixed sample content and are not reachable from the UI
               {/ * TAB 2: INTERACTIVE ER GRAPH * /}
               {activeTab === 'graph' && (
-                <div className="h-full border border-[#E5DFD3] rounded-md bg-[#F6F2EA]/30 p-4 space-y-4">
-                  <div className="flex items-center justify-between text-xs text-[#4D4D4F]">
+                <div className="h-full border border-[#D3D2CE] rounded-xs bg-[#F1F0EC]/30 p-4 space-y-4">
+                  <div className="flex items-center justify-between text-xs text-[#626263]">
                     <span>Entity Relational Dependency Graph (DuckDB Physical Schema Mapping)</span>
                     <span className="font-mono text-[11px]">4 Core Nodes · 5 Relational Edges</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     {/ * Node 1: Subscriber Account * /}
-                    <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
-                        <span className="font-semibold text-xs text-[#29251D]">tmf_subscriber_account</span>
+                    <div className="bg-white border border-[#D3D2CE] rounded-xs p-3 ">
+                      <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-1.5 mb-2">
+                        <span className="font-semibold text-xs text-[#0B0B0C]">tmf_subscriber_account</span>
                         <span className="text-[10px] font-mono text-[#E31837]">TMF 654</span>
                       </div>
-                      <div className="space-y-1 font-mono text-[11px] text-[#4D4D4F]">
+                      <div className="space-y-1 font-mono text-[11px] text-[#626263]">
                         <div className="flex justify-between">
-                          <span className="text-[#29251D] font-semibold">PK msisdn</span>
+                          <span className="text-[#0B0B0C] font-semibold">PK msisdn</span>
                           <span>VARCHAR(15)</span>
                         </div>
                         <div className="flex justify-between">
@@ -3534,14 +3729,14 @@ export default function App() {
                     </div>
 
                     {/ * Node 2: 5G CDR Stream * /}
-                    <div className="bg-white border border-[#8A5200] rounded-lg p-3 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
-                        <span className="font-semibold text-xs text-[#29251D]">cdr_telemetry_stream</span>
+                    <div className="bg-white border border-[#8A5200] rounded-xs p-3 ">
+                      <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-1.5 mb-2">
+                        <span className="font-semibold text-xs text-[#0B0B0C]">cdr_telemetry_stream</span>
                         <span className="text-[10px] font-mono text-[#8A5200]">3GPP TS 32.298</span>
                       </div>
-                      <div className="space-y-1 font-mono text-[11px] text-[#4D4D4F]">
+                      <div className="space-y-1 font-mono text-[11px] text-[#626263]">
                         <div className="flex justify-between">
-                          <span className="text-[#29251D] font-semibold">FK msisdn</span>
+                          <span className="text-[#0B0B0C] font-semibold">FK msisdn</span>
                           <span className="text-emerald-700">1:N edge</span>
                         </div>
                         <div className="flex justify-between">
@@ -3556,12 +3751,12 @@ export default function App() {
                     </div>
 
                     {/ * Node 3: Product Ordering * /}
-                    <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
-                        <span className="font-semibold text-xs text-[#29251D]">tmf_product_order</span>
+                    <div className="bg-white border border-[#D3D2CE] rounded-xs p-3 ">
+                      <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-1.5 mb-2">
+                        <span className="font-semibold text-xs text-[#0B0B0C]">tmf_product_order</span>
                         <span className="text-[10px] font-mono text-[#185F8D]">TMF 622</span>
                       </div>
-                      <div className="space-y-1 font-mono text-[11px] text-[#4D4D4F]">
+                      <div className="space-y-1 font-mono text-[11px] text-[#626263]">
                         <div className="flex justify-between">
                           <span>order_id</span>
                           <span>UUID</span>
@@ -3574,12 +3769,12 @@ export default function App() {
                     </div>
 
                     {/ * Node 4: Churn Propensity * /}
-                    <div className="bg-white border border-[#E5DFD3] rounded-lg p-3 shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5 mb-2">
-                        <span className="font-semibold text-xs text-[#29251D]">churn_prediction_target</span>
+                    <div className="bg-white border border-[#D3D2CE] rounded-xs p-3 ">
+                      <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-1.5 mb-2">
+                        <span className="font-semibold text-xs text-[#0B0B0C]">churn_prediction_target</span>
                         <span className="text-[10px] font-mono text-purple-700">MEF LSO</span>
                       </div>
-                      <div className="space-y-1 font-mono text-[11px] text-[#4D4D4F]">
+                      <div className="space-y-1 font-mono text-[11px] text-[#626263]">
                         <div className="flex justify-between">
                           <span>churn_risk_score</span>
                           <span>FLOAT(3)</span>
@@ -3597,12 +3792,12 @@ export default function App() {
               {/ * TAB 3: AST RULE MATRIX * /}
               {activeTab === 'ast' && (
                 <div className="space-y-3">
-                  <div className="p-3 bg-white border border-[#E5DFD3] rounded-md space-y-2">
+                  <div className="p-3 bg-white border border-[#D3D2CE] rounded-xs space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-[#29251D]">Pandera Python AST Schema Spec</span>
+                      <span className="font-semibold text-[#0B0B0C]">Pandera Python AST Schema Spec</span>
                       <span className="text-[11px] font-mono text-[#247153]">12 Checks Active</span>
                     </div>
-                    <pre className="p-2.5 bg-[#29251D] text-emerald-400 rounded text-[11px] font-mono leading-relaxed overflow-x-auto">
+                    <pre className="p-2.5 bg-[#0B0B0C] text-emerald-400 rounded-xs text-[11px] font-mono leading-relaxed overflow-x-auto">
 {`import pandera as pa
 from pandera.typing import Series
 
@@ -3620,21 +3815,21 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                   </div>
 
                   {/ * Live AST Sandbox * /}
-                  <div className="p-3 bg-[#F6F2EA] border border-[#E5DFD3] rounded-md space-y-2">
-                    <span className="text-xs font-semibold text-[#29251D]">Interactive AST Expression Evaluator</span>
+                  <div className="p-3 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs space-y-2">
+                    <span className="text-xs font-semibold text-[#0B0B0C]">Interactive AST Expression Evaluator</span>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={sandboxExpr}
                         onChange={e => setSandboxExpr(e.target.value)}
-                        className="flex-1 p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+                        className="flex-1 p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
                       />
                       <input
                         type="text"
                         value={sandboxValue}
                         onChange={e => setSandboxValue(e.target.value)}
                         placeholder="Test val"
-                        className="w-24 p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+                        className="w-24 p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
                       />
                       <button
                         onClick={() => {
@@ -3647,12 +3842,12 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                               : `Pandera AST Check Evaluated: FAIL (Negative value violates non_negative constraint)`
                           });
                         }}
-                        className="px-3 py-1.5 bg-[#29251D] text-white rounded text-xs font-medium hover:bg-[#0A0838]"
+                        className="px-3 py-1.5 bg-[#0B0B0C] text-white rounded-xs text-xs font-medium hover:bg-[#E31837]"
                       >
                         Eval AST
                       </button>
                     </div>
-                    <div className={`p-2 rounded text-xs font-mono border ${
+                    <div className={`p-2 rounded-xs text-xs font-mono border ${
                       sandboxResult.passed ? 'bg-emerald-50 text-[#247153] border-emerald-200' : 'bg-red-50 text-[#9C1936] border-red-200'
                     }`}>
                       {sandboxResult.message}
@@ -3664,20 +3859,20 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               {/ * TAB 4: STAGE DETAILS & PIPELINE LOGS * /}
               {activeTab === 'stageDetails' && (
                 <div className="space-y-3 text-xs">
-                  <div className="p-3 bg-white border border-[#E5DFD3] rounded-md space-y-2">
+                  <div className="p-3 bg-white border border-[#D3D2CE] rounded-xs space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[#29251D]">
+                      <span className="font-semibold text-[#0B0B0C]">
                         Stage {activeStage} Execution Inspection
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-[#247153] border border-emerald-200">
+                      <span className="px-2 py-0.5 rounded-xs text-[10px] font-mono bg-emerald-50 text-[#247153] border border-emerald-200">
                         STATUS: {stageStatuses[activeStage]}
                       </span>
                     </div>
 
                     {activeStage === 1 && (
-                      <div className="space-y-2 text-[#4D4D4F]">
+                      <div className="space-y-2 text-[#626263]">
                         <p><strong>Dynamic Sub-Schema Extraction:</strong> RAG semantic vector similarity search against SID / TMF SQLite catalogue.</p>
-                        <div className="p-2 bg-[#F6F2EA] rounded font-mono text-[11px] space-y-1">
+                        <div className="p-2 bg-[#F1F0EC] rounded-xs font-mono text-[11px] space-y-1">
                           <div>Target SID Root: <code>TMF 622 ProductOrder / TMF 654 Bucket</code></div>
                           <div>Pruned Entities: 1,420 SID classes reduced to 4 focused domain models</div>
                           <div>Embedding Similarity Score: 0.941 Cosine</div>
@@ -3686,9 +3881,9 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     )}
 
                     {activeStage === 2 && (
-                      <div className="space-y-2 text-[#4D4D4F]">
+                      <div className="space-y-2 text-[#626263]">
                         <p><strong>Schema Synthesis & Parameterization:</strong> Gemini + Instructor + Pydantic v2 code generator output.</p>
-                        <div className="p-2 bg-[#F6F2EA] rounded font-mono text-[11px] space-y-1">
+                        <div className="p-2 bg-[#F1F0EC] rounded-xs font-mono text-[11px] space-y-1">
                           <div>Fitted Distributions: LogNormal(account_balance), Beta(data_depletion)</div>
                           <div>Synthesized Constraints: 6 Pydantic validators generated</div>
                           <div>Compilation Time: 142ms</div>
@@ -3697,9 +3892,9 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     )}
 
                     {activeStage === 5 && (
-                      <div className="space-y-2 text-[#4D4D4F]">
+                      <div className="space-y-2 text-[#626263]">
                         <p><strong>Final Data Contract Compilation:</strong> DuckDB Columnar table DDL & Arrow IPC buffer allocation.</p>
-                        <div className="p-2 bg-[#F6F2EA] rounded font-mono text-[11px] space-y-1">
+                        <div className="p-2 bg-[#F1F0EC] rounded-xs font-mono text-[11px] space-y-1">
                           <div>Engine Target: DuckDB In-Process Vector Engine</div>
                           <div>Target Buffer: Apache Arrow RecordBatch (Zero-Copy)</div>
                           <div>Output Format: Parquet with Snappy compression</div>
@@ -3714,16 +3909,22 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               )}
             </div>
 
-            {/* Bottom Proceed Action Bar */}
-            <div className="h-12 min-h-12 border-t border-[#E5DFD3] bg-[#F6F2EA] px-3 flex items-center justify-end">
+            {/* Bottom Proceed Action Bar (on the generate step it is only needed again if the schema was changed after approval) */}
+            <div className={`${workflowStep === 2 || !confirmed ? 'flex' : 'hidden'} h-12 min-h-12 border-t border-[#D3D2CE] bg-[#F1F0EC] px-4 items-center justify-end`}>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => void handleApproveSchema()}
                   disabled={!pipelineRun || !draft || isConfirming}
-                  className="px-3.5 py-1.5 text-xs bg-[#247153] hover:bg-[#1a553e] disabled:opacity-50 text-white rounded font-medium flex items-center gap-1.5 shadow-xs focus-techm transition-all cursor-pointer"
+                  className="wb-btn h-10 px-4 text-[13px] focus-techm"
                 >
-                  {isConfirming ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                  <span>{isConfirming ? 'Approving schema...' : 'Approve & Proceed to Core Data Generation →'}</span>
+                  {isConfirming ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Approving schema...</span>
+                    </>
+                  ) : (
+                    <BtnLabel>{workflowStep === 2 ? 'Approve & continue to generate' : 'Approve changes'}</BtnLabel>
+                  )}
                 </button>
               </div>
             </div>
@@ -3733,47 +3934,47 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               PANE 3: MULTI-MODAL GENERATION & ENGINE TARGET (Hidden until Step 2 complete)
               ===================================================================== */}
           <section className={`${
-            maxUnlockedStep < 3 || pane3Collapsed
+            workflowStep !== 3 || maxUnlockedStep < 3 || pane3Collapsed
               ? 'hidden'
-              : 'col-span-3'
-          } h-full flex flex-col bg-[#FFFFFF] border border-[#E5DFD3] rounded-lg shadow-2xs overflow-hidden transition-all duration-200 ${
-            workflowStep === 3 ? 'ring-2 ring-[#E31837]/30' : ''
+              : 'col-span-3 2xl:col-span-4'
+          } h-full wb-pane flex flex-col bg-[#FFFFFF] border border-[#D3D2CE] rounded-xs overflow-hidden transition-all ${
+            workflowStep === 3 ? 'border-t-2 border-t-[#E31837]' : ''
           }`}>
             {/* Pane Header */}
-            <div className="h-10 min-h-10 px-3 border-b border-[#E5DFD3] flex items-center bg-[#FFFFFF]">
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-[#E31837]" />
-                <h2 className="text-xs font-semibold text-[#29251D] uppercase tracking-wider">
-                  Core Data Generation
-                </h2>
-              </div>
-            </div>
-
             {/* Scrollable Engine Parameters */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+              <div className="pb-0">
+                <p className="wb-cap text-[#626263]">Step 03 of 03</p>
+                {/* The heading makes room for the results once data has been generated */}
+                {!generated && (
+                  <h2 className="mt-2 text-[22px] font-medium tracking-[-0.035em] leading-[1.08] text-[#0B0B0C]">
+                    Choose how much data to generate.
+                  </h2>
+                )}
+              </div>
               {/* Selected Modalities Status Indicator */}
-              <div className="flex items-center justify-between p-2 rounded-md bg-[#F6F2EA]/60 border border-[#E5DFD3] text-xs">
-                <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+              <div className="flex items-center justify-between p-2 rounded-xs bg-[#F1F0EC]/60 border border-[#D3D2CE] text-xs">
+                <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                   Target Modalities
                 </span>
                 <div className="flex items-center gap-1">
                   {modalities.text && (
-                    <span className="px-1.5 py-0.5 rounded bg-[#247153]/10 text-[#247153] text-[10px] font-semibold flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 rounded-xs bg-[#247153]/10 text-[#247153] text-[10px] font-semibold flex items-center gap-1">
                       <FileText className="w-2.5 h-2.5" /> Unstructured Data
                     </span>
                   )}
                   {modalities.structured && (
-                    <span className="px-1.5 py-0.5 rounded bg-[#185F8D]/10 text-[#185F8D] text-[10px] font-semibold flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 rounded-xs bg-[#185F8D]/10 text-[#185F8D] text-[10px] font-semibold flex items-center gap-1">
                       <Table className="w-2.5 h-2.5" /> Structured Data
                     </span>
                   )}
                   {modalities.vision && (
-                    <span className="px-1.5 py-0.5 rounded bg-[#8A5200]/10 text-[#8A5200] text-[10px] font-semibold flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 rounded-xs bg-[#8A5200]/10 text-[#8A5200] text-[10px] font-semibold flex items-center gap-1">
                       <ImageIcon className="w-2.5 h-2.5" /> Image
                     </span>
                   )}
                   {modalities.telemetry && (
-                    <span className="px-1.5 py-0.5 rounded bg-[#9C1936]/10 text-[#9C1936] text-[10px] font-semibold flex items-center gap-1">
+                    <span className="px-1.5 py-0.5 rounded-xs bg-[#9C1936]/10 text-[#9C1936] text-[10px] font-semibold flex items-center gap-1">
                       <Video className="w-2.5 h-2.5" /> Video
                     </span>
                   )}
@@ -3791,7 +3992,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     <>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label htmlFor={recordCountInputId} className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                          <label htmlFor={recordCountInputId} className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                             {isTransactional ? 'Number of Users' : 'Record Volume'}
                           </label>
                           <div className="flex gap-1">
@@ -3799,10 +4000,10 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                               <button
                                 key={val}
                                 onClick={() => setRecordCount(val)}
-                                className={`text-[10px] px-1.5 py-0.5 rounded border cursor-pointer ${
+                                className={`text-[10px] px-1.5 py-0.5 rounded-xs border cursor-pointer ${
                                   recordCount === val
-                                    ? 'bg-[#29251D] text-white border-[#29251D]'
-                                    : 'bg-white border-[#E5DFD3] text-[#4D4D4F]'
+                                    ? 'bg-[#0B0B0C] text-white border-[#0B0B0C]'
+                                    : 'bg-white border-[#D3D2CE] text-[#626263]'
                                 }`}
                               >
                                 {val >= 1000 ? `${val / 1000}K` : val}
@@ -3818,16 +4019,16 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           min={1}
                           max={MAX_VOLUME}
                           onChange={e => setRecordCount(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
+                          className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono tabular-nums text-[#0B0B0C] focus-techm"
                         />
-                        <p className="mt-1 text-[10px] text-[#8E8B82]">
+                        <p className="mt-1 text-[10px] text-[#8F8F8D]">
                           Up to {MAX_VOLUME.toLocaleString()} {isTransactional ? 'users' : 'rows'} per run.
                         </p>
                       </div>
 
                       {isTransactional && (
                         <div>
-                          <label htmlFor={recordsPerUserInputId} className="block text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider mb-1">
+                          <label htmlFor={recordsPerUserInputId} className="block text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] mb-1 font-mono">
                             Records per User
                           </label>
                           <input
@@ -3837,9 +4038,9 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                             min={1}
                             max={MAX_RECORDS_PER_USER}
                             onChange={e => setRecordsPerUser(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
+                            className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono tabular-nums text-[#0B0B0C] focus-techm"
                           />
-                          <p className="mt-1 text-[10px] text-[#8E8B82]">
+                          <p className="mt-1 text-[10px] text-[#8F8F8D]">
                             Up to {MAX_RECORDS_PER_USER} history records per user. This run: {(volume * perUser).toLocaleString()} records.
                           </p>
                         </div>
@@ -3850,11 +4051,11 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
 
                 {/* DISABLED: Reproducibility Seed: the seed is not offered for now (generation runs without one)
                 {/ * Reproducibility Seed - Hidden by default using downward arrow option * /}
-                <div className="rounded-md border border-[#E5DFD3] bg-[#F6F2EA]/40 overflow-hidden transition-all">
+                <div className="rounded-xs border border-[#D3D2CE] bg-[#F1F0EC]/40 overflow-hidden transition-all">
                   {/ * Collapsible Trigger Row with Downward Arrow Option * /}
                   <div
                     onClick={() => setSeedSectionExpanded(prev => !prev)}
-                    className="flex items-center justify-between p-2 bg-[#F6F2EA]/70 hover:bg-[#F6F2EA] cursor-pointer transition-colors select-none"
+                    className="flex items-center justify-between p-2 bg-[#F1F0EC]/70 hover:bg-[#F1F0EC] cursor-pointer transition-colors select-none"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -3868,11 +4069,11 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-3.5 h-3.5 text-[#E31837]" />
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                        <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                           Reproducibility Seed
                         </span>
                         {randomSeed !== '' && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#E31837]/10 text-[#E31837] font-semibold border border-[#E31837]/20">
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-xs bg-[#E31837]/10 text-[#E31837] font-medium border border-[#E31837]/20">
                             Seed #{randomSeed}
                           </span>
                         )}
@@ -3885,12 +4086,12 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         e.stopPropagation();
                         setSeedSectionExpanded(prev => !prev);
                       }}
-                      className="flex items-center gap-1 text-[11px] font-medium text-[#4D4D4F] hover:text-[#29251D] px-1.5 py-0.5 rounded hover:bg-white/80 transition-colors cursor-pointer"
+                      className="flex items-center gap-1 text-[11px] font-medium text-[#626263] hover:text-[#0B0B0C] px-1.5 py-0.5 rounded-xs hover:bg-white/80 transition-colors cursor-pointer"
                       title={seedSectionExpanded ? "Hide seed options" : "Show reproducibility seed options"}
                     >
                       <span>{seedSectionExpanded ? "Hide" : "Show Seed"}</span>
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-[#4D4D4F] transition-transform duration-200 ${
+                        className={`w-3.5 h-3.5 text-[#626263] transition-transform duration-200 ${
                           seedSectionExpanded ? 'rotate-180' : ''
                         }`}
                       />
@@ -3899,9 +4100,9 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
 
                   {/ * Seed Configuration Body - Kept hidden until expanded via downward arrow * /}
                   {seedSectionExpanded && (
-                    <div className="p-2.5 pt-2 border-t border-[#E5DFD3] bg-white space-y-2 animate-in fade-in duration-150 relative">
+                    <div className="p-2.5 pt-2 border-t border-[#D3D2CE] bg-white space-y-2 animate-in fade-in duration-150 relative">
                       <div className="flex items-center justify-between mb-0.5">
-                        <label htmlFor={randomSeedInputId} className="text-[10px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                        <label htmlFor={randomSeedInputId} className="text-[10px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                           Random Seed Value
                         </label>
                         <div className="flex items-center gap-1.5">
@@ -3909,16 +4110,16 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           <button
                             type="button"
                             onClick={() => setShowSeedSuggestions(prev => !prev)}
-                            className={`text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors cursor-pointer shadow-2xs ${
+                            className={`text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded-xs border transition-colors cursor-pointer ${
                               showSeedSuggestions
                                 ? 'bg-[#E31837] text-white border-[#E31837]'
-                                : 'bg-[#FDF9F0] text-[#E31837] border-[#E5DFD3] hover:border-[#E31837]'
+                                : 'bg-[#F8F7F4] text-[#E31837] border-[#D3D2CE] hover:border-[#E31837]'
                             }`}
                             title="View recommended seeds calibrated for your selected record volume"
                           >
                             <Sparkles className="w-3 h-3" />
                             <span>Seed Suggestions</span>
-                            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-white/40 text-current border border-current/20">
+                            <span className="text-[9px] font-mono px-1 py-0.2 rounded-xs bg-white/40 text-current border border-current/20">
                               {typeof recordCount === 'number' && recordCount > 0 ? (recordCount >= 1000 ? `${recordCount / 1000}K` : recordCount) : '100K'}
                             </span>
                           </button>
@@ -3944,7 +4145,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         value={randomSeed}
                         placeholder="Optional seed (a whole number, 0 to 2147483647)"
                         onChange={e => setRandomSeed(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono tabular-nums text-[#29251D] focus-techm"
+                        className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono tabular-nums text-[#0B0B0C] focus-techm"
                       />
 
                       {/ * DISABLED: volume-calibrated seed suggestions were fixed sample text; any seed reproduces the same dataset
@@ -3954,7 +4155,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         const topSuggested = getVolumeSeedSuggestions(recordCount)[0];
                         return (
                           <div className="flex items-center justify-between text-[10px] pt-0.5">
-                            <span className="text-[#8E8B82]">
+                            <span className="text-[#8F8F8D]">
                               Suggested for {currentVol.toLocaleString()} records:
                             </span>
                             <button
@@ -3967,7 +4168,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                               title="Apply volume-calibrated baseline seed"
                             >
                               <span>Seed {topSuggested.seed} ({topSuggested.tag})</span>
-                              <span className="text-[9px] bg-[#E31837]/10 px-1 rounded font-bold">Apply</span>
+                              <span className="text-[9px] bg-[#E31837]/10 px-1 rounded-xs font-semibold">Apply</span>
                             </button>
                           </div>
                         );
@@ -3975,18 +4176,18 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
 
                       {/ * Seed Suggestions Popup based on record volume * /}
                       {showSeedSuggestions && (
-                        <div className="mt-1.5 p-2.5 bg-white border border-[#E5DFD3] rounded-md shadow-xl space-y-2 z-30 relative animate-in fade-in duration-150">
-                          <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-1.5">
+                        <div className="mt-1.5 p-2.5 bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] space-y-2 z-30 relative animate-in fade-in duration-150">
+                          <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-1.5">
                             <div className="flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-[#E31837]" />
-                              <span className="text-[11px] font-semibold text-[#29251D]">
+                              <span className="text-[11px] font-semibold text-[#0B0B0C]">
                                 Seed Suggestions ({(typeof recordCount === 'number' && recordCount > 0 ? recordCount : 100000).toLocaleString()} Records)
                               </span>
                             </div>
                             <button
                               type="button"
                               onClick={() => setShowSeedSuggestions(false)}
-                              className="text-[#4D4D4F] hover:text-[#29251D] p-0.5 rounded cursor-pointer"
+                              className="text-[#626263] hover:text-[#0B0B0C] p-0.5 rounded-xs cursor-pointer"
                               aria-label="Close seed suggestions"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -3994,8 +4195,8 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           </div>
 
                           {/ * Quick Volume Switcher inside popup to test seed suggestions * /}
-                          <div className="flex items-center justify-between bg-[#F6F2EA]/60 p-1.5 rounded border border-[#E5DFD3] text-[10px]">
-                            <span className="text-[#4D4D4F] font-medium">Test volume:</span>
+                          <div className="flex items-center justify-between bg-[#F1F0EC]/60 p-1.5 rounded-xs border border-[#D3D2CE] text-[10px]">
+                            <span className="text-[#626263] font-medium">Test volume:</span>
                             <div className="flex gap-1">
                               {[10000, 50000, 100000, 500000].map(v => (
                                 <button
@@ -4005,10 +4206,10 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                                     setRecordCount(v);
                                     showToast(`Selected ${v >= 1000 ? `${v / 1000}K` : v} records for seed calibration`);
                                   }}
-                                  className={`px-1.5 py-0.5 rounded font-mono text-[9px] cursor-pointer transition-colors ${
+                                  className={`px-1.5 py-0.5 rounded-xs font-mono text-[9px] cursor-pointer transition-colors ${
                                     recordCount === v
-                                      ? 'bg-[#E31837] text-white font-bold'
-                                      : 'bg-white text-[#4D4D4F] border border-[#E5DFD3] hover:border-[#29251D]'
+                                      ? 'bg-[#E31837] text-white font-semibold'
+                                      : 'bg-white text-[#626263] border border-[#D3D2CE] hover:border-[#0B0B0C]'
                                   }`}
                                 >
                                   {v >= 1000 ? `${v / 1000}K` : v}
@@ -4017,7 +4218,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                             </div>
                           </div>
 
-                          <p className="text-[10px] text-[#4D4D4F] leading-snug">
+                          <p className="text-[10px] text-[#626263] leading-snug">
                             Calibrated PRNG seeds tailored for entropy and distribution variance at your chosen record volume:
                           </p>
 
@@ -4031,14 +4232,14 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                                   setShowSeedSuggestions(false);
                                   showToast(`Applied seed ${item.seed} (${item.tag})`);
                                 }}
-                                className="w-full text-left p-1.5 rounded border border-[#E5DFD3] hover:border-[#E31837] hover:bg-[#FDF9F0] transition-colors cursor-pointer group"
+                                className="w-full text-left p-1.5 rounded-xs border border-[#D3D2CE] hover:border-[#E31837] hover:bg-[#F8F7F4] transition-colors cursor-pointer group"
                               >
                                 <div className="flex items-center justify-between mb-0.5">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-xs text-[#29251D] group-hover:text-[#E31837]">
+                                    <span className="font-mono font-medium text-xs text-[#0B0B0C] group-hover:text-[#E31837]">
                                       Seed {item.seed}
                                     </span>
-                                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#F6F2EA] text-[#4D4D4F] border border-[#E5DFD3]">
+                                    <span className="text-[9px] font-mono px-1 py-0.2 rounded-xs bg-[#F1F0EC] text-[#626263] border border-[#D3D2CE]">
                                       {item.tag}
                                     </span>
                                   </div>
@@ -4046,11 +4247,11 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                                     Click to Apply →
                                   </span>
                                 </div>
-                                <p className="text-[10px] text-[#4D4D4F] leading-tight">
+                                <p className="text-[10px] text-[#626263] leading-tight">
                                   {item.desc}
                                 </p>
                                 {item.rationale && (
-                                  <p className="text-[9px] text-[#8E8B82] leading-tight mt-0.5 italic">
+                                  <p className="text-[9px] text-[#8F8F8D] leading-tight mt-0.5 italic">
                                     <strong>Why this volume:</strong> {item.rationale}
                                   </p>
                                 )}
@@ -4058,7 +4259,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                             ))}
                           </div>
 
-                          <div className="pt-1.5 border-t border-[#E5DFD3] flex items-center justify-between">
+                          <div className="pt-1.5 border-t border-[#D3D2CE] flex items-center justify-between">
                             <button
                               type="button"
                               onClick={() => {
@@ -4072,7 +4273,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                             >
                               <span>Auto-tune seed for volume</span>
                             </button>
-                            <span className="text-[9px] text-[#8E8B82] font-mono">Deterministic PRNG</span>
+                            <span className="text-[9px] text-[#8F8F8D] font-mono">Deterministic PRNG</span>
                           </div>
                         </div>
                       )}
@@ -4084,13 +4285,13 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               </div>
 
               {/* DISABLED for now: Quality Verification (the validation report of the generated dataset, POST /scenario/generate)
-              <div className="mt-5 pt-3.5 border-t border-[#E5DFD3]">
+              <div className="mt-5 pt-3.5 border-t border-[#D3D2CE]">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">
+                  <label className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">
                     Quality Verification
                   </label>
                   {generated && (
-                    <span className="text-[10px] font-mono text-[#4D4D4F]">
+                    <span className="text-[10px] font-mono text-[#626263]">
                       {(generated.validation_report.rows ?? generated.total_records).toLocaleString()} rows checked
                     </span>
                   )}
@@ -4143,36 +4344,36 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           <div
                             key={param.id}
                             title={pending ? 'Run the data generation to see the quality report' : param.note}
-                            className={`p-2 rounded border relative transition-all ${
+                            className={`p-2 rounded-xs border relative transition-all ${
                               flagged
-                                ? 'bg-amber-50/80 border-amber-400 ring-1 ring-amber-400/50 shadow-2xs'
-                                : 'bg-[#F6F2EA] border-[#E5DFD3]'
+                                ? 'bg-amber-50/80 border-amber-400 ring-1 ring-amber-400/50 '
+                                : 'bg-[#F1F0EC] border-[#D3D2CE]'
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-[#4D4D4F] font-medium">{param.title}</span>
+                              <span className="text-[10px] text-[#626263] font-medium">{param.title}</span>
                               {pending ? (
-                                <span className="text-[9px] font-mono text-[#8E8B82]">PENDING</span>
+                                <span className="text-[9px] font-mono text-[#8F8F8D]">PENDING</span>
                               ) : flagged ? (
-                                <span className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-[#8A5200] bg-amber-100 px-1 py-0.2 rounded border border-amber-300">
+                                <span className="flex items-center gap-0.5 text-[9px] font-mono font-medium text-[#8A5200] bg-amber-100 px-1 py-0.2 rounded-xs border border-amber-300">
                                   <AlertTriangle className="w-2.5 h-2.5 text-[#8A5200]" />
                                   <span>FAIL</span>
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-[#247153]">
+                                <span className="flex items-center gap-0.5 text-[9px] font-mono font-medium text-[#247153]">
                                   <Check className="w-2.5 h-2.5" />
                                   <span>PASS</span>
                                 </span>
                               )}
                             </div>
                             <div
-                              className={`text-xs font-mono font-bold mt-1 ${
-                                pending ? 'text-[#8E8B82]' : flagged ? 'text-[#8A5200]' : 'text-[#247153]'
+                              className={`text-xs font-mono font-semibold mt-1 ${
+                                pending ? 'text-[#8F8F8D]' : flagged ? 'text-[#8A5200]' : 'text-[#247153]'
                               }`}
                             >
                               <span>{pending ? '—' : param.score}</span>
                             </div>
-                            {!pending && <p className="mt-0.5 text-[9px] text-[#4D4D4F] leading-tight">{param.note}</p>}
+                            {!pending && <p className="mt-0.5 text-[9px] text-[#626263] leading-tight">{param.note}</p>}
                           </div>
                         );
                       })}
@@ -4184,14 +4385,14 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
             </div>
 
             {/* Sticky Action Footer */}
-            <div className="p-3 border-t border-[#E5DFD3] bg-[#F6F2EA] space-y-2">
+            <div className="p-3 border-t border-[#D3D2CE] bg-[#F1F0EC] space-y-2">
               {/* Primary Action Button: Execute Data Generation (Expanded to full width) */}
               <div className="w-full">
                 <button
                   type="button"
                   onClick={() => void handleExecuteEngine()}
                   disabled={isExecuting || !confirmed}
-                  className="w-full h-[42px] px-3 bg-[#E31837] hover:bg-[#5F0229] disabled:opacity-50 text-white font-semibold text-xs rounded-md shadow-sm flex items-center justify-center gap-2 focus-techm transition-all cursor-pointer"
+                  className="wb-btn w-full h-10 px-4 text-[13px] focus-techm"
                 >
                   {isExecuting ? (
                     <>
@@ -4199,22 +4400,16 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                       <span className="truncate">Generating...</span>
                     </>
                   ) : !confirmed ? (
-                    <>
-                      <Zap className="w-3.5 h-3.5 text-white shrink-0" />
-                      <span className="truncate">Approve Schema First</span>
-                    </>
+                    <BtnLabel>Approve Schema First</BtnLabel>
                   ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 fill-white shrink-0" />
-                      <span className="truncate">Execute Data Generation</span>
-                    </>
+                    <BtnLabel>Execute Data Generation</BtnLabel>
                   )}
                 </button>
               </div>
 
               {/* Completion Message when execution finishes without popup modal */}
               {isExecutionComplete && !isExecuting && generated && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-2 text-xs text-[#247153] shadow-2xs">
+                <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-xs flex items-center gap-2 text-xs text-[#247153] ">
                   <CheckCircle2 className="w-4 h-4 text-[#247153] shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-xs text-[#247153]">Data Generation Complete</p>
@@ -4227,16 +4422,16 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
 
               {/* Download: offered once the data has been generated (CSV or JSON of the returned records) */}
               {isExecutionComplete && !isExecuting && generated && (
-                <div className="bg-white p-2.5 rounded-md border border-[#E5DFD3] space-y-2 shadow-2xs">
+                <div className="bg-white p-2.5 rounded-xs border border-[#D3D2CE] space-y-2 ">
                   <div className="flex items-center gap-1.5">
                     <FileSpreadsheet className="w-3.5 h-3.5 text-[#E31837] shrink-0" />
-                    <span className="text-[11px] font-semibold text-[#4D4D4F] uppercase tracking-wider">Download Data</span>
+                    <span className="text-[11px] font-medium text-[#626263] uppercase tracking-[0.06em] font-mono">Download Data</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
                       value={downloadFormat}
                       onChange={e => setDownloadFormat(e.target.value as DownloadFormat)}
-                      className="flex-1 min-w-0 p-1.5 bg-[#F6F2EA] border border-[#E5DFD3] rounded text-xs font-mono font-medium text-[#29251D] focus-techm cursor-pointer"
+                      className="flex-1 min-w-0 p-1.5 bg-[#F1F0EC] border border-[#D3D2CE] rounded-xs text-xs font-mono font-medium text-[#0B0B0C] focus-techm cursor-pointer"
                       aria-label="Select download data format"
                     >
                       <option value="csv">CSV (.csv)</option>
@@ -4248,7 +4443,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                     <button
                       type="button"
                       onClick={() => handleDownloadSyntheticData()}
-                      className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-[#29251D] hover:bg-[#4D4D4F] text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-[#0B0B0C] hover:bg-[#626263] text-white rounded-xs text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer "
                       title={`Download the generated records as ${downloadFormat.toUpperCase()}`}
                     >
                       <Download className="w-3.5 h-3.5 text-white" />
@@ -4261,13 +4456,13 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
           </section>
 
           {/* Collapsed Right Side Panel with side arrow */}
-          {pane3Collapsed && maxUnlockedStep >= 3 && (
+          {pane3Collapsed && workflowStep === 3 && maxUnlockedStep >= 3 && (
             <div
               onClick={() => {
                 setPane3Collapsed(false);
                 showToast('Expanded right side panel');
               }}
-              className="w-10 h-full bg-white border border-[#E5DFD3] rounded-lg flex flex-col items-center py-3 justify-between shadow-2xs cursor-pointer hover:bg-[#FDF9F0] transition-colors shrink-0"
+              className="w-10 h-full bg-white border border-[#D3D2CE] rounded-xs flex flex-col items-center py-3 justify-between cursor-pointer hover:bg-[#F8F7F4] transition-colors shrink-0"
               title="Click side arrow to show right side panel"
             >
               <button
@@ -4277,12 +4472,12 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                   setPane3Collapsed(false);
                   showToast('Expanded right side panel');
                 }}
-                className="p-1 text-[#4D4D4F] hover:text-[#E31837] hover:bg-[#E5DFD3]/40 rounded cursor-pointer transition-colors"
+                className="p-1 text-[#626263] hover:text-[#E31837] hover:bg-[#D3D2CE]/40 rounded-xs cursor-pointer transition-colors"
                 title="Show right side panel"
               >
                 <ChevronLeft className="w-4 h-4 text-[#E31837]" />
               </button>
-              <span className="text-[10px] font-semibold text-[#4D4D4F] [writing-mode:vertical-rl] rotate-180 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[10px] font-medium text-[#626263] [writing-mode:vertical-rl] rotate-180 uppercase tracking-[0.06em] flex items-center gap-1.5 font-mono">
                 <Database className="w-3.5 h-3.5 text-[#E31837] rotate-90" />
                 <span>3. Core Data Generation</span>
               </span>
@@ -4299,7 +4494,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
             onBack={() => setActiveNav('workbench')}
             onLoadContract={contract => {
               setActiveNav('workbench');
-              showToast(`Opened the workbench for ${contract.title}. Pick its scenario in Pane 1.`);
+              showToast(`Opened the workbench for ${contract.title}. Pick its scenario in step 1.`);
             }}
             showToast={showToast}
           />
@@ -4352,16 +4547,16 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
           EXECUTION RESULTS & DATA INSPECTOR DRAWER / MODAL
           ========================================================================= * /}
       {executionDrawerOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6 backdrop-blur-2xs">
-          <div className="bg-white border border-[#E5DFD3] rounded-lg shadow-2xl w-full max-w-4xl h-[520px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/40 z-50 flex items-center justify-center p-6 backdrop-blur-2xs">
+          <div className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] w-full max-w-4xl h-[520px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/ * Header * /}
-            <div className="h-12 border-b border-[#E5DFD3] px-4 flex items-center justify-between bg-[#F6F2EA]">
+            <div className="h-12 border-b border-[#D3D2CE] px-4 flex items-center justify-between bg-[#F1F0EC]">
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-[#E31837]" />
-                <h3 className="font-semibold text-sm text-[#29251D]">
+                <h3 className="font-semibold text-sm text-[#0B0B0C]">
                   Multi-Modal Engine Execution Preview · {(targetEngine || 'duckdb').toUpperCase()}
                 </h3>
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-100 text-[#247153] border border-emerald-300">
+                <span className="text-xs font-mono px-2 py-0.5 rounded-xs bg-emerald-100 text-[#247153] border border-emerald-300">
                   {executionProgress === 100 ? 'COMPLETED' : 'STREAMING'}
                 </span>
               </div>
@@ -4369,7 +4564,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 <select
                   value={downloadFormat}
                   onChange={e => setDownloadFormat(e.target.value as any)}
-                  className="p-1 px-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono text-[#29251D] focus-techm cursor-pointer"
+                  className="p-1 px-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono text-[#0B0B0C] focus-techm cursor-pointer"
                   title="Select download format"
                 >
                   <option value="csv">CSV (.csv)</option>
@@ -4377,13 +4572,13 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                 </select>
                 <button
                   onClick={() => handleDownloadSyntheticData()}
-                  className="px-2.5 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#29251D] hover:border-[#29251D] flex items-center gap-1 font-medium cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#0B0B0C] hover:border-[#0B0B0C] flex items-center gap-1 font-medium cursor-pointer "
                 >
                   <Download className="w-3 h-3 text-[#E31837]" /> Download {downloadFormat.toUpperCase()}
                 </button>
                 <button
                   onClick={() => setExecutionDrawerOpen(false)}
-                  className="p-1 rounded text-[#4D4D4F] hover:text-[#29251D] cursor-pointer"
+                  className="p-1 rounded-xs text-[#626263] hover:text-[#0B0B0C] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -4391,7 +4586,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
             </div>
 
             {/ * Execution Progress Bar * /}
-            <div className="w-full bg-[#E5DFD3] h-1.5">
+            <div className="w-full bg-[#D3D2CE] h-1.5">
               <div
                 className="bg-[#E31837] h-full transition-all duration-300"
                 style={{ width: `${executionProgress}%` }}
@@ -4401,15 +4596,15 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
             {/ * Content Tabs in Drawer * /}
             <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs font-mono">
               <div>
-                <div className="flex items-center justify-between text-[#4D4D4F] mb-1.5">
-                  <span className="font-semibold text-[#29251D]">Sample Synthetic Records (First 5 Rows)</span>
+                <div className="flex items-center justify-between text-[#626263] mb-1.5">
+                  <span className="font-semibold text-[#0B0B0C]">Sample Synthetic Records (First 5 Rows)</span>
                   <span className="text-[11px] tabular-nums">Total: {(recordCount || 100000).toLocaleString()} rows generated</span>
                 </div>
 
-                <div className="border border-[#E5DFD3] rounded-md overflow-x-auto bg-white">
+                <div className="border border-[#D3D2CE] rounded-xs overflow-x-auto bg-white">
                   <table className="w-full text-left border-collapse text-[11px]">
                     <thead>
-                      <tr className="bg-[#F6F2EA] border-b border-[#E5DFD3] text-[#4D4D4F]">
+                      <tr className="bg-[#F1F0EC] border-b border-[#D3D2CE] text-[#626263]">
                         <th className="p-2">msisdn</th>
                         <th className="p-2">account_balance</th>
                         <th className="p-2">data_depletion_pct</th>
@@ -4418,33 +4613,33 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                         <th className="p-2">sim_status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5DFD3]">
+                    <tbody className="divide-y divide-[#D3D2CE]">
                       <tr>
-                        <td className="p-2 text-[#29251D] font-bold">+14155550192</td>
+                        <td className="p-2 text-[#0B0B0C] font-semibold">+14155550192</td>
                         <td className="p-2 tabular-nums">$14.20</td>
                         <td className="p-2 tabular-nums">98.4%</td>
-                        <td className="p-2 tabular-nums text-[#9C1936] font-bold">0.892 (High)</td>
+                        <td className="p-2 tabular-nums text-[#9C1936] font-semibold">0.892 (High)</td>
                         <td className="p-2">eMBB-01</td>
                         <td className="p-2 text-emerald-700">ACTIVE</td>
                       </tr>
                       <tr>
-                        <td className="p-2 text-[#29251D] font-bold">+14155550244</td>
+                        <td className="p-2 text-[#0B0B0C] font-semibold">+14155550244</td>
                         <td className="p-2 tabular-nums">$120.00</td>
                         <td className="p-2 tabular-nums">12.1%</td>
-                        <td className="p-2 tabular-nums text-emerald-700 font-bold">0.041 (Low)</td>
+                        <td className="p-2 tabular-nums text-emerald-700 font-semibold">0.041 (Low)</td>
                         <td className="p-2">URLLC-02</td>
                         <td className="p-2 text-emerald-700">ACTIVE</td>
                       </tr>
                       <tr>
-                        <td className="p-2 text-[#29251D] font-bold">+14155550381</td>
+                        <td className="p-2 text-[#0B0B0C] font-semibold">+14155550381</td>
                         <td className="p-2 tabular-nums">$2.50</td>
                         <td className="p-2 tabular-nums">99.8%</td>
-                        <td className="p-2 tabular-nums text-[#9C1936] font-bold">0.942 (Critical)</td>
+                        <td className="p-2 tabular-nums text-[#9C1936] font-semibold">0.942 (Critical)</td>
                         <td className="p-2">eMBB-01</td>
                         <td className="p-2 text-amber-700">GRACE_PERIOD</td>
                       </tr>
                       <tr>
-                        <td className="p-2 text-[#29251D] font-bold">+14155550419</td>
+                        <td className="p-2 text-[#0B0B0C] font-semibold">+14155550419</td>
                         <td className="p-2 tabular-nums">$45.00</td>
                         <td className="p-2 tabular-nums">64.5%</td>
                         <td className="p-2 tabular-nums text-[#8A5200]">0.312 (Med)</td>
@@ -4459,10 +4654,10 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               {/ * Unstructured Text Modality Sample * /}
               {modalities.text && (
                 <div>
-                  <div className="text-[#4D4D4F] font-semibold text-[#29251D] mb-1">
+                  <div className="text-[#626263] font-semibold text-[#0B0B0C] mb-1">
                     Multi-Modal Output: Unstructured Customer Support Transcript Log
                   </div>
-                  <div className="p-2.5 bg-[#F6F2EA] rounded border border-[#E5DFD3] text-[11px] leading-relaxed text-[#29251D]">
+                  <div className="p-2.5 bg-[#F1F0EC] rounded-xs border border-[#D3D2CE] text-[11px] leading-relaxed text-[#0B0B0C]">
                     <span className="text-[#185F8D]">[2026-09-29T07:14:02Z] Subscriber +14155550192 (IVR):</span> "My 5G high-speed slice stopped working after reaching 98% balance depletion. Need auto-topup extension."<br/>
                     <span className="text-[#247153]">[2026-09-29T07:14:04Z] Telco Bot (TMF 622 API):</span> "Topup transaction initiated for bucket ID bkt_99214. Grace period applied."
                   </div>
@@ -4471,8 +4666,8 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
 
               {/ * Engine Log * /}
               <div>
-                <div className="text-[#4D4D4F] font-semibold text-[#29251D] mb-1">DuckDB Engine Query Stream Logs</div>
-                <pre className="p-2 bg-[#29251D] text-emerald-400 rounded text-[10px] leading-tight">
+                <div className="text-[#626263] font-semibold text-[#0B0B0C] mb-1">DuckDB Engine Query Stream Logs</div>
+                <pre className="p-2 bg-[#0B0B0C] text-emerald-400 rounded-xs text-[10px] leading-tight">
 {`SELECT msisdn, account_balance, data_depletion_pct, churn_risk_score
 FROM parquet_scan('s3://synthetic-telco-bucket/run_42901/ *.parquet')
 WHERE churn_risk_score > 0.85
@@ -4483,11 +4678,11 @@ LIMIT 5;
             </div>
 
             {/ * Footer * /}
-            <div className="h-10 border-t border-[#E5DFD3] px-4 flex items-center justify-between bg-[#F6F2EA] text-xs">
-              <span className="text-[#4D4D4F]">All constraints, AST rules, and privacy bounds satisfied.</span>
+            <div className="h-10 border-t border-[#D3D2CE] px-4 flex items-center justify-between bg-[#F1F0EC] text-xs">
+              <span className="text-[#626263]">All constraints, AST rules, and privacy bounds satisfied.</span>
               <button
                 onClick={() => setExecutionDrawerOpen(false)}
-                className="px-3 py-1 bg-[#29251D] text-white rounded text-xs font-medium hover:bg-[#0A0838]"
+                className="px-3 py-1 bg-[#0B0B0C] text-white rounded-xs text-xs font-medium hover:bg-[#E31837]"
               >
                 Close Drawer
               </button>
@@ -4503,31 +4698,31 @@ LIMIT 5;
       {globalSearchOpen && (
         <div 
           onClick={() => setGlobalSearchOpen(false)}
-          className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-24 backdrop-blur-2xs"
+          className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/40 z-50 flex items-start justify-center pt-24 backdrop-blur-2xs"
         >
           <div 
             onClick={e => e.stopPropagation()}
-            className="bg-white border border-[#E5DFD3] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in duration-100"
+            className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] w-full max-w-lg overflow-hidden animate-in fade-in duration-100"
           >
-            <div className="p-3 border-b border-[#E5DFD3] flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#4D4D4F]" />
+            <div className="p-3 border-b border-[#D3D2CE] flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#626263]" />
               <input
                 type="text"
                 autoFocus
                 value={globalSearchTerm}
                 onChange={e => setGlobalSearchTerm(e.target.value)}
                 placeholder="Search contract fields..."
-                className="w-full text-xs text-[#29251D] outline-none"
+                className="w-full text-xs text-[#0B0B0C] outline-none"
               />
-              <kbd className="text-[10px] font-mono bg-[#F6F2EA] text-[#4D4D4F] border border-[#E5DFD3] px-1.5 py-0.5 rounded">
+              <kbd className="text-[10px] font-mono bg-[#F1F0EC] text-[#626263] border border-[#D3D2CE] px-1.5 py-0.5 rounded-xs">
                 ESC
               </kbd>
             </div>
 
-            <div className="p-2 max-h-64 overflow-y-auto text-xs divide-y divide-[#E5DFD3]">
+            <div className="p-2 max-h-64 overflow-y-auto text-xs divide-y divide-[#D3D2CE]">
               {/* DISABLED: fixed list of standards (static data)
               <div className="py-1">
-                <div className="text-[10px] uppercase font-mono text-[#4D4D4F] px-2 py-1">Standards Reference</div>
+                <div className="text-[10px] uppercase font-mono text-[#626263] px-2 py-1">Standards Reference</div>
                 {['TMF 622 Product Ordering', 'TMF 638 Service Inventory', '3GPP TS 32.298 5G CDR', 'BIAN v10 Payments', 'HL7 FHIR Patient']
                   .filter(s => s.toLowerCase().includes(globalSearchTerm.toLowerCase()))
                   .map(item => (
@@ -4537,17 +4732,17 @@ LIMIT 5;
                         setGlobalSearchOpen(false);
                         showToast(`Selected standard: ${item}`);
                       }}
-                      className="w-full text-left px-2 py-1.5 rounded hover:bg-[#F6F2EA] flex items-center justify-between text-[#29251D]"
+                      className="w-full text-left px-2 py-1.5 rounded-xs hover:bg-[#F1F0EC] flex items-center justify-between text-[#0B0B0C]"
                     >
                       <span>{item}</span>
-                      <ChevronRight className="w-3 h-3 text-[#4D4D4F]" />
+                      <ChevronRight className="w-3 h-3 text-[#626263]" />
                     </button>
                   ))}
               </div>
               */}
 
               <div className="py-1">
-                <div className="text-[10px] uppercase font-mono text-[#4D4D4F] px-2 py-1">Fields in Contract</div>
+                <div className="text-[10px] uppercase font-mono text-[#626263] px-2 py-1">Fields in Contract</div>
                 {fields
                   .filter(f => f.name.toLowerCase().includes(globalSearchTerm.toLowerCase()))
                   .map(f => (
@@ -4558,10 +4753,10 @@ LIMIT 5;
                         setSelectedFieldId(f.id);
                         setActiveTab('table');
                       }}
-                      className="w-full text-left px-2 py-1.5 rounded hover:bg-[#F6F2EA] flex items-center justify-between font-mono"
+                      className="w-full text-left px-2 py-1.5 rounded-xs hover:bg-[#F1F0EC] flex items-center justify-between font-mono"
                     >
-                      <span className="font-semibold text-[#29251D]">{f.name}</span>
-                      <span className="text-[#4D4D4F] text-[11px]">{f.physicalType}</span>
+                      <span className="font-semibold text-[#0B0B0C]">{f.name}</span>
+                      <span className="text-[#626263] text-[11px]">{f.physicalType}</span>
                     </button>
                   ))}
               </div>
@@ -4587,44 +4782,44 @@ LIMIT 5;
           EDIT FIELD MODAL
           ========================================================================= * /}
       {editingField && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
-          <div className="bg-white border border-[#E5DFD3] rounded-lg shadow-xl w-full max-w-md p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-[#E5DFD3] pb-2">
-              <h3 className="text-xs font-semibold text-[#29251D]">
+        <div className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs">
+          <div className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] w-full max-w-md p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#D3D2CE] pb-2">
+              <h3 className="text-xs font-semibold text-[#0B0B0C]">
                 Edit Constraints: {editingField.name}
               </h3>
-              <button onClick={() => setEditingField(null)} aria-label="Close edit field dialog" className="text-[#4D4D4F] hover:text-[#29251D]">
+              <button onClick={() => setEditingField(null)} aria-label="Close edit field dialog" className="text-[#626263] hover:text-[#0B0B0C]">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
             <div className="space-y-2 text-xs">
               <div>
-                <label className="text-[10px] font-mono text-[#4D4D4F] uppercase">Physical Type</label>
+                <label className="text-[10px] font-mono text-[#626263] uppercase">Physical Type</label>
                 <input
                   type="text"
                   value={editingField.physicalType}
                   onChange={e => setEditingField({ ...editingField, physicalType: e.target.value })}
-                  className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+                  className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono text-[#4D4D4F] uppercase">Constraints / Range Expression</label>
+                <label className="text-[10px] font-mono text-[#626263] uppercase">Constraints / Range Expression</label>
                 <input
                   type="text"
                   value={editingField.constraints}
                   onChange={e => setEditingField({ ...editingField, constraints: e.target.value })}
-                  className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs font-mono focus-techm"
+                  className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs font-mono focus-techm"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono text-[#4D4D4F] uppercase">Sensitivity Level</label>
+                <label className="text-[10px] font-mono text-[#626263] uppercase">Sensitivity Level</label>
                 <select
                   value={editingField.sensitivity}
                   onChange={e => setEditingField({ ...editingField, sensitivity: e.target.value as any })}
-                  className="w-full p-1.5 bg-white border border-[#E5DFD3] rounded text-xs focus-techm"
+                  className="w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm"
                 >
                   <option value="Operational">Operational</option>
                   <option value="PII / Masked">PII / Masked</option>
@@ -4634,10 +4829,10 @@ LIMIT 5;
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#E5DFD3]">
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#D3D2CE]">
               <button
                 onClick={() => setEditingField(null)}
-                className="px-3 py-1 text-xs border border-[#E5DFD3] rounded bg-white text-[#4D4D4F]"
+                className="px-3 py-1 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#626263]"
               >
                 Cancel
               </button>
@@ -4647,7 +4842,7 @@ LIMIT 5;
                   setEditingField(null);
                   showToast(`Updated constraints for ${editingField.name}`);
                 }}
-                className="px-3 py-1 text-xs bg-[#E31837] text-white rounded font-medium shadow-xs"
+                className="px-3 py-1 text-xs bg-[#E31837] text-white rounded-xs font-medium "
               >
                 Save Changes
               </button>
@@ -4662,27 +4857,27 @@ LIMIT 5;
           RECOMMEND SCENARIO VARIABLES MODAL (From Screenshot)
           ========================================================================= * /}
       {showRecommendModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 p-6 max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
+        <div className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="wb-modal bg-white rounded-xs max-w-4xl w-full shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] border border-[#D3D2CE] p-6 max-h-[92vh] flex flex-col overflow-hidden text-[#1E1E21]">
             {/ * Header * /}
             <div className="flex items-start justify-between pb-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#0F172A]" />
-                  <h2 className="text-base font-bold text-[#0F172A] tracking-tight">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0B0B0C]" />
+                  <h2 className="text-base font-semibold text-[#0B0B0C] tracking-tight">
                     Recommend Scenario Variables
                   </h2>
                 </div>
-                <p className="text-xs text-slate-500 mt-1 leading-normal">
+                <p className="text-xs text-[#6C6C6B] mt-1 leading-normal">
                   Select the variables you want to persist as recommended variables. Click the checkbox or row, use the arrows, or drag variables between panels.
                 </p>
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 text-[11px] font-mono text-slate-700 mt-2 font-medium">
-                  requestedScenarioId: <span className="font-semibold text-slate-900">LB-01</span>
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xs border border-[#D3D2CE] bg-[#F8F7F4] text-[11px] font-mono text-[#3D3D3F] mt-2 font-medium">
+                  requestedScenarioId: <span className="font-semibold text-[#0B0B0C]">LB-01</span>
                 </div>
               </div>
               <button
                 onClick={() => setShowRecommendModal(false)}
-                className="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors cursor-pointer shrink-0 ml-3"
+                className="w-8 h-8 rounded-xs border border-[#D3D2CE] hover:bg-[#EDECE8] flex items-center justify-center text-[#6C6C6B] hover:text-[#1E1E21] transition-colors cursor-pointer shrink-0 ml-3"
                 title="Close modal"
               >
                 <X className="w-4 h-4" />
@@ -4693,33 +4888,33 @@ LIMIT 5;
             <div className="flex-1 overflow-hidden grid grid-cols-[1fr_auto_1fr] gap-3 items-center py-2 min-h-0">
               
               {/ * Left Panel: Available Variables * /}
-              <div className="h-full flex flex-col border border-slate-200 rounded-2xl p-3.5 bg-white overflow-hidden shadow-2xs">
+              <div className="h-full flex flex-col border border-[#D3D2CE] rounded-xs p-3.5 bg-white overflow-hidden ">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h3 className="text-xs font-bold text-[#0F172A]">Available Variables</h3>
-                    <p className="text-[11px] text-slate-400">{filteredAvailable.length} available</p>
+                    <h3 className="text-xs font-semibold text-[#0B0B0C]">Available Variables</h3>
+                    <p className="text-[11px] text-[#8F8F8D]">{filteredAvailable.length} available</p>
                   </div>
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full">
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-[#EDECE8] text-[#3D3D3F] rounded-xs">
                     {filteredAvailable.length}
                   </span>
                 </div>
 
                 {/ * Search Available * /}
                 <div className="relative mb-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-3.5 h-3.5 text-[#8F8F8D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchAvailable}
                     onChange={e => setSearchAvailable(e.target.value)}
                     placeholder="Search variables..."
-                    className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 placeholder:text-slate-400"
+                    className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-[#D3D2CE] rounded-xs focus:outline-none focus:border-[#8F8F8D] placeholder:text-[#8F8F8D]"
                   />
                 </div>
 
                 {/ * Scrollable list of Available Variable cards * /}
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                   {filteredAvailable.length === 0 ? (
-                    <div className="h-32 flex items-center justify-center text-slate-400 text-xs">
+                    <div className="h-32 flex items-center justify-center text-[#8F8F8D] text-xs">
                       No available variables match search
                     </div>
                   ) : (
@@ -4736,10 +4931,10 @@ LIMIT 5;
                               return next;
                             });
                           }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                          className={`p-3 rounded-xs border transition-all cursor-pointer text-left ${
                             isSelected
-                              ? 'border-slate-900 bg-slate-50/70 ring-1 ring-slate-900 shadow-2xs'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30'
+                              ? 'border-[#0B0B0C] bg-[#F8F7F4]/70 ring-1 ring-[#0B0B0C] '
+                              : 'border-[#D3D2CE] bg-white hover:border-[#BDBDB9] hover:bg-[#F8F7F4]/30'
                           }`}
                         >
                           <div className="flex items-start gap-2.5">
@@ -4747,18 +4942,18 @@ LIMIT 5;
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => {}} // Controlled by outer div onClick
-                              className="mt-0.5 rounded text-slate-900 focus:ring-slate-900 cursor-pointer"
+                              className="mt-0.5 rounded-xs text-[#0B0B0C] focus:ring-[#0B0B0C] cursor-pointer"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-1.5 mb-1">
-                                <span className="font-mono text-xs font-bold text-slate-900 truncate">
+                                <span className="font-mono text-xs font-medium text-[#0B0B0C] truncate">
                                   {variable.name}
                                 </span>
-                                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 uppercase shrink-0">
+                                <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-xs border border-[#D3D2CE] text-[#6C6C6B] uppercase shrink-0">
                                   {variable.type}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 leading-snug font-sans">
+                              <p className="text-[11px] text-[#6C6C6B] leading-snug font-sans">
                                 {variable.description}
                               </p>
                             </div>
@@ -4777,7 +4972,7 @@ LIMIT 5;
                   type="button"
                   onClick={handleMoveAllToRecommended}
                   disabled={availableVars.length === 0}
-                  className="w-8 h-8 rounded-xl bg-[#0B132B] hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-[#0B132B] text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+                  className="w-8 h-8 rounded-xs bg-[#0B0B0C] hover:bg-[#1E1E21] disabled:opacity-40 disabled:hover:bg-[#0B0B0C] text-white flex items-center justify-center transition-colors cursor-pointer "
                   title="Move all available to recommended"
                 >
                   <ChevronsRight className="w-4 h-4" />
@@ -4788,7 +4983,7 @@ LIMIT 5;
                   type="button"
                   onClick={handleMoveSelectedToRecommended}
                   disabled={selectedAvailableIds.size === 0}
-                  className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-40 text-slate-600 flex items-center justify-center transition-colors cursor-pointer bg-white"
+                  className="w-8 h-8 rounded-xs border border-[#D3D2CE] hover:bg-[#EDECE8] disabled:opacity-40 text-[#626263] flex items-center justify-center transition-colors cursor-pointer bg-white"
                   title="Move selected to recommended"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -4799,7 +4994,7 @@ LIMIT 5;
                   type="button"
                   onClick={handleMoveSelectedToAvailable}
                   disabled={selectedRecommendedIds.size === 0}
-                  className="w-8 h-8 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-40 text-slate-600 flex items-center justify-center transition-colors cursor-pointer bg-white"
+                  className="w-8 h-8 rounded-xs border border-[#D3D2CE] hover:bg-[#EDECE8] disabled:opacity-40 text-[#626263] flex items-center justify-center transition-colors cursor-pointer bg-white"
                   title="Move selected to available"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -4810,7 +5005,7 @@ LIMIT 5;
                   type="button"
                   onClick={handleMoveAllToAvailable}
                   disabled={recommendedVars.length === 0}
-                  className="w-8 h-8 rounded-xl border border-rose-200 text-rose-400 hover:bg-rose-50 disabled:opacity-40 flex items-center justify-center transition-colors cursor-pointer bg-white"
+                  className="w-8 h-8 rounded-xs border border-rose-200 text-rose-400 hover:bg-rose-50 disabled:opacity-40 flex items-center justify-center transition-colors cursor-pointer bg-white"
                   title="Move all recommended back to available"
                 >
                   <ChevronsLeft className="w-4 h-4" />
@@ -4818,37 +5013,37 @@ LIMIT 5;
               </div>
 
               {/ * Right Panel: Recommended Variables * /}
-              <div className="h-full flex flex-col border border-slate-200 rounded-2xl p-3.5 bg-white overflow-hidden shadow-2xs">
+              <div className="h-full flex flex-col border border-[#D3D2CE] rounded-xs p-3.5 bg-white overflow-hidden ">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h3 className="text-xs font-bold text-[#0F172A]">Recommended Variables</h3>
-                    <p className="text-[11px] text-slate-400">{filteredRecommended.length} selected</p>
+                    <h3 className="text-xs font-semibold text-[#0B0B0C]">Recommended Variables</h3>
+                    <p className="text-[11px] text-[#8F8F8D]">{filteredRecommended.length} selected</p>
                   </div>
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full">
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-[#EDECE8] text-[#3D3D3F] rounded-xs">
                     {filteredRecommended.length}
                   </span>
                 </div>
 
                 {/ * Search Recommended * /}
                 <div className="relative mb-2.5">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-3.5 h-3.5 text-[#8F8F8D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchRecommended}
                     onChange={e => setSearchRecommended(e.target.value)}
                     placeholder="Search selected..."
-                    className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 placeholder:text-slate-400"
+                    className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-[#D3D2CE] rounded-xs focus:outline-none focus:border-[#8F8F8D] placeholder:text-[#8F8F8D]"
                   />
                 </div>
 
                 {/ * Scrollable list of Recommended Variable cards * /}
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                   {recommendedVars.length === 0 ? (
-                    <div className="h-full min-h-[220px] flex items-center justify-center text-slate-400 text-xs font-medium text-center p-6">
+                    <div className="h-full min-h-[220px] flex items-center justify-center text-[#8F8F8D] text-xs font-medium text-center p-6">
                       Select variables on the left, then click the right arrow.
                     </div>
                   ) : filteredRecommended.length === 0 ? (
-                    <div className="h-32 flex items-center justify-center text-slate-400 text-xs">
+                    <div className="h-32 flex items-center justify-center text-[#8F8F8D] text-xs">
                       No recommended variables match search
                     </div>
                   ) : (
@@ -4865,10 +5060,10 @@ LIMIT 5;
                               return next;
                             });
                           }}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                          className={`p-3 rounded-xs border transition-all cursor-pointer text-left ${
                             isSelected
-                              ? 'border-slate-900 bg-slate-50/70 ring-1 ring-slate-900 shadow-2xs'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30'
+                              ? 'border-[#0B0B0C] bg-[#F8F7F4]/70 ring-1 ring-[#0B0B0C] '
+                              : 'border-[#D3D2CE] bg-white hover:border-[#BDBDB9] hover:bg-[#F8F7F4]/30'
                           }`}
                         >
                           <div className="flex items-start gap-2.5">
@@ -4876,18 +5071,18 @@ LIMIT 5;
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => {}}
-                              className="mt-0.5 rounded text-slate-900 focus:ring-slate-900 cursor-pointer"
+                              className="mt-0.5 rounded-xs text-[#0B0B0C] focus:ring-[#0B0B0C] cursor-pointer"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-1.5 mb-1">
-                                <span className="font-mono text-xs font-bold text-slate-900 truncate">
+                                <span className="font-mono text-xs font-medium text-[#0B0B0C] truncate">
                                   {variable.name}
                                 </span>
-                                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 uppercase shrink-0">
+                                <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-xs border border-[#D3D2CE] text-[#6C6C6B] uppercase shrink-0">
                                   {variable.type}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 leading-snug font-sans">
+                              <p className="text-[11px] text-[#6C6C6B] leading-snug font-sans">
                                 {variable.description}
                               </p>
                             </div>
@@ -4902,16 +5097,16 @@ LIMIT 5;
             </div>
 
             {/ * Modal Footer * /}
-            <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs mt-1">
-              <span className="text-slate-600">
-                <strong className="text-slate-900 font-bold">{recommendedVars.length}</strong> recommended out of{' '}
-                <strong className="text-slate-900 font-bold">{AVAILABLE_SCENARIO_VARIABLES.length}</strong> selectable variables
+            <div className="pt-3 border-t border-[#D3D2CE] flex items-center justify-between text-xs mt-1">
+              <span className="text-[#626263]">
+                <strong className="text-[#0B0B0C] font-semibold">{recommendedVars.length}</strong> recommended out of{' '}
+                <strong className="text-[#0B0B0C] font-semibold">{AVAILABLE_SCENARIO_VARIABLES.length}</strong> selectable variables
               </span>
 
               <button
                 type="button"
                 onClick={handleApplyRecommended}
-                className="px-5 py-2.5 rounded-xl bg-slate-500 hover:bg-slate-600 text-white font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xs bg-[#6C6C6B] hover:bg-[#626263] text-white font-semibold text-xs flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Recommend Selected Variables</span>

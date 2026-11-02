@@ -22,5 +22,5 @@ const VISUALS: { match: RegExp; visual: DomainVisual }[] = [
 
 /** Presentation only: which logo and colour an industry gets, chosen from its name. Unknown industries get a neutral one. */
 export function getDomainVisual(industryName: string): DomainVisual {
-  return VISUALS.find(item => item.match.test(industryName))?.visual ?? { Logo: TrustSafetyDomainLogo, color: 'text-[#4D4D4F]' };
+  return VISUALS.find(item => item.match.test(industryName))?.visual ?? { Logo: TrustSafetyDomainLogo, color: 'text-[#626263]' };
 }

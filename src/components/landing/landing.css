@@ -1,13 +1,7 @@
 /* ModelOS Source landing page.
    The supplied stylesheet, scoped under .ml so nothing here reaches the workspace: html/body rules apply to .ml, every other
    selector is prefixed with it, and @keyframes mq is renamed ml-mq. Rules for classes the page never uses were removed.
-   Fonts are self-hosted from src/assets/landing/fonts (no external font service). */
-@font-face{font-family:'Mona Sans';font-style:normal;font-weight:200 900;font-stretch:75% 125%;font-display:swap;src:url(../../assets/landing/fonts/mona-sans.woff2) format('woff2')}
-@font-face{font-family:'DM Mono';font-style:normal;font-weight:400;font-display:swap;src:url(../../assets/landing/fonts/dm-mono-400.woff2) format('woff2')}
-@font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/dm-mono-500.woff2) format('woff2')}
-@font-face{font-family:'Noto Sans Devanagari';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-devanagari-500.woff2) format('woff2')}
-@font-face{font-family:'Noto Sans Tamil';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-tamil-500.woff2) format('woff2')}
-@font-face{font-family:'Noto Sans Bengali';font-style:normal;font-weight:500;font-display:swap;src:url(../../assets/landing/fonts/noto-sans-bengali-500.woff2) format('woff2')}
+   Fonts: see src/index.css (shared with the workspace; self-hosted from src/assets/landing/fonts). */
 
 /* While the hero intro plays, Lenis stops the page; this also stops touch scrolling. */
 html.lenis-stopped{overflow:hidden}
