@@ -1,7 +1,7 @@
 /* ModelOS Source landing page.
    The supplied stylesheet, scoped under .ml so nothing here reaches the workspace: html/body rules apply to .ml, every other
    selector is prefixed with it, and @keyframes mq is renamed ml-mq. Rules for classes the page never uses were removed.
-   Fonts: see src/index.css (shared with the workspace; self-hosted from src/assets/landing/fonts). */
+   Fonts are self-hosted from src/assets/landing/fonts (no external font service). */
 
 /* While the hero intro plays, Lenis stops the page; this also stops touch scrolling. */
 html.lenis-stopped{overflow:hidden}

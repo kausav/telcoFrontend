@@ -1,51 +1,42 @@
 import React from 'react';
 
-export interface StepIntroItem {
-  label: string;
-  done: boolean;
+export interface StepIntroProps {
+  /** Which of the four choices of Step 1 are made, in order: industry, use case, customer journey, type of data. */
+  done: [boolean, boolean, boolean, boolean];
 }
 
-/**
- * The dark panel beside step 1, the workspace's counterpart to the landing page's dark sections:
- * a big headline, one line of guidance and a checklist that fills in as the choices on the right are made.
- */
-export const StepIntro: React.FC<{ items: StepIntroItem[] }> = ({ items }) => {
-  const done = items.filter(item => item.done).length;
+const ITEMS = ['Industry', 'Use case', 'Customer journey', 'Type of data'];
+
+/** The dark side panel of Step 1: what this step is for, and how far along the person is. Hidden on narrow screens. */
+export const StepIntro: React.FC<StepIntroProps> = ({ done }) => {
+  const count = done.filter(Boolean).length;
   return (
-    <aside className="wb-pane hidden lg:flex lg:col-span-2 2xl:col-span-3 h-full flex-col justify-between bg-[#0B0B0C] text-[#F1F0EC] rounded-xs p-4 overflow-hidden relative">
+    <aside className="wb-pane hidden lg:flex lg:col-span-2 2xl:col-span-3 h-full min-h-0 flex-col justify-between bg-[#0B0B0C] text-[#F1F0EC] rounded-xs p-4 overflow-hidden">
       <div>
-        <p className="wb-cap text-[#F1F0EC]/60">Step 01 of 03</p>
-        <h2 className="mt-4 text-[clamp(22px,2.1vw,30px)] font-medium leading-[1.08] tracking-[-0.035em]">
+        <p className="wb-cap text-[#F1F0EC]/60 flex items-center gap-2">
+          <i className="inline-block w-[7px] h-[7px] bg-[#E31837]" aria-hidden="true" />
+          Step 01 of 03
+        </p>
+        <h2 className="mt-3 font-medium tracking-[-0.03em] leading-[1.05] text-[clamp(22px,2.1vw,30px)]">
           Choose the industry and the story behind your data.
         </h2>
-        <p className="mt-3 text-[13px] leading-relaxed text-[#F1F0EC]/62 wb-tall-only">
-          Pick a domain, a use case and a customer journey. Next you review the schema we propose, or bring your own CSV,
-          and then generate.
+        <p className="wb-tall-only mt-3 text-[13px] leading-relaxed text-[#F1F0EC]/60">
+          Pick a use case and a customer journey, then let us propose the schema for it, or upload a schema of your own.
         </p>
       </div>
-
       <div>
-        <div className="flex items-baseline justify-between border-t border-[#F1F0EC]/13 pt-4">
-          <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#F1F0EC]/40">Progress</span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-[#F1F0EC]/60">
-            {done} / {items.length}
-          </span>
-        </div>
-        <ol className="mt-1">
-          {items.map((item, i) => (
-            <li
-              key={item.label}
-              className={`flex items-center gap-3 py-2 border-b border-[#F1F0EC]/13 transition-colors ${
-                item.done ? 'text-[#F1F0EC]' : 'text-[#F1F0EC]/40'
-              }`}
-            >
-              <span className="font-mono text-[11px] tracking-[0.06em] w-5">{String(i + 1).padStart(2, '0')}</span>
-              <span className="flex-1 text-[13px] tracking-[-0.01em]">{item.label}</span>
-              <span
-                aria-hidden="true"
-                className={`w-2 h-2 transition-all duration-500 ${item.done ? 'bg-[#E31837] scale-100' : 'bg-transparent border border-[#F1F0EC]/30 scale-90'}`}
-              />
-              <span className="sr-only">{item.done ? 'done' : 'not done yet'}</span>
+        <p className="wb-cap text-[#F1F0EC]/60 flex items-center justify-between">
+          <span>Progress</span>
+          <span className="text-[#F1F0EC]">{count} / 4</span>
+        </p>
+        <ol className="mt-2 border-t border-[#F1F0EC]/15">
+          {ITEMS.map((label, i) => (
+            <li key={label} className="flex items-center justify-between py-2 border-b border-[#F1F0EC]/15 text-[13px]">
+              <span className="flex items-center gap-3">
+                <span className="wb-cap text-[#F1F0EC]/50">{String(i + 1).padStart(2, '0')}</span>
+                <span className={done[i] ? 'text-[#F1F0EC]' : 'text-[#F1F0EC]/55'}>{label}</span>
+              </span>
+              <i className={`inline-block w-[7px] h-[7px] transition-colors duration-500 ${done[i] ? 'bg-[#E31837]' : 'bg-[#F1F0EC]/20'}`} aria-hidden="true" />
             </li>
           ))}
         </ol>

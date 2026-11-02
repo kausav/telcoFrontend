@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Fonts of the whole app (the landing page and the workspace share them); self-hosted, no external font service. */
+/* Fonts: the same files the landing page uses (Mona Sans variable, DM Mono, Noto Sans for the Indic scripts). */
 @font-face{font-family:'Mona Sans';font-style:normal;font-weight:200 900;font-stretch:75% 125%;font-display:swap;src:url(./assets/landing/fonts/mona-sans.woff2) format('woff2')}
 @font-face{font-family:'DM Mono';font-style:normal;font-weight:400;font-display:swap;src:url(./assets/landing/fonts/dm-mono-400.woff2) format('woff2')}
 @font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/dm-mono-500.woff2) format('woff2')}
@@ -8,18 +8,15 @@
 @font-face{font-family:'Noto Sans Tamil';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/noto-sans-tamil-500.woff2) format('woff2')}
 @font-face{font-family:'Noto Sans Bengali';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/noto-sans-bengali-500.woff2) format('woff2')}
 
+/* Same design tokens as the landing page: ink #0B0B0C, paper #F1F0EC, signal #E31837, hairlines at 13% ink. */
 @theme static {
   --font-sans: 'Mona Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-
-  /* Same easing and pace as the landing page: every transition in the workspace uses them unless it says otherwise. */
   --ease-landing: cubic-bezier(.2, .7, 0, 1);
   --default-transition-duration: .35s;
   --default-transition-timing-function: cubic-bezier(.2, .7, 0, 1);
 }
 
-/* The workspace follows the landing page: paper (#F1F0EC) and ink (#0B0B0C) with one signal red (#E31837), hairline borders,
-   square 2px corners, flat surfaces, Mona Sans for text and DM Mono for captions, numbers and data. */
 @layer base {
   body {
     font-family: var(--font-sans);
@@ -29,189 +26,84 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
-  ::selection {
-    background: rgba(227, 24, 55, .12);
-    color: #E31837;
-    -webkit-text-fill-color: #E31837;
-  }
+  ::selection { background: rgba(227, 24, 55, .12); color: #E31837; -webkit-text-fill-color: #E31837; }
 }
 
-/* Compact hairline scrollbars for the dense workspace */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
+/* Hairline scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(11, 11, 12, .22); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: rgba(11, 11, 12, .4); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Keyboard focus: the landing page's signal-red outline */
+.focus-techm:focus-visible { outline: 2px solid #E31837; outline-offset: 2px; box-shadow: none; }
 
-::-webkit-scrollbar-thumb {
-  background: #BDBDB9;
-  border-radius: 0;
-}
+/* ---------- Workspace components ---------- */
 
-::-webkit-scrollbar-thumb:hover {
-  background: #8F8F8D;
-}
-
-/* Keyboard focus: the same red outline as the landing page */
-.focus-techm:focus-visible {
-  outline: 2px solid #E31837;
-  outline-offset: 2px;
-  box-shadow: none;
-}
-
-/* Notifications: ink panel, hairline border, square corners, mono captions */
-.Toastify {
-  --toastify-color-dark: #141416;
-  --toastify-text-color-dark: #F1F0EC;
-  --toastify-color-progress-dark: #E31837;
-  --toastify-color-info: #F1F0EC;
-  --toastify-color-success: #3FB68B;
-  --toastify-color-warning: #E0A030;
-  --toastify-color-error: #E31837;
-  --toastify-icon-color-info: #F1F0EC;
-  --toastify-icon-color-success: #3FB68B;
-  --toastify-icon-color-warning: #E0A030;
-  --toastify-icon-color-error: #E31837;
-  --toastify-font-family: var(--font-sans);
-}
-
-.Toastify__toast {
-  border-radius: 2px;
-  border: 1px solid rgba(241, 240, 236, .13);
-  font-size: 13px;
-  box-shadow: 0 24px 60px -24px rgba(11, 11, 12, .5);
-}
-
-
-/* ---------------------------------------------------------------------------------------------------------------
-   Motion and components shared by the workspace screens. Timings and easing are the landing page's
-   (cubic-bezier(.2,.7,0,1), .3-.6s); everything is switched off for people who ask for reduced motion.
-   --------------------------------------------------------------------------------------------------------------- */
-
-/* Primary button: red square, hover darkens and glows; the label rolls up and the white marker turns, as on the landing page. */
+/* Primary button: red, flat, with the landing page's square and rolling label */
 .wb-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: #E31837;
-  color: #fff;
-  font-weight: 560;
-  letter-spacing: -.01em;
-  border-radius: 2px;
-  overflow: hidden;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: 0 0 0 0 rgba(227, 24, 55, 0);
-  transition: box-shadow .5s var(--ease-landing), background-color .3s, opacity .3s;
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  background: #E31837; color: #fff; border-radius: 2px; overflow: hidden; white-space: nowrap;
+  font-weight: 560; letter-spacing: -.01em; cursor: pointer;
+  transition: background-color .3s, box-shadow .5s cubic-bezier(.2, .7, 0, 1);
 }
-.wb-btn:hover:not(:disabled) {
-  background: #C8102E;
-  box-shadow: 0 10px 40px -10px rgba(227, 24, 55, .65);
-}
-.wb-btn:disabled {
-  background: #D3D2CE;
-  color: #8F8F8D;
-  cursor: not-allowed;
-}
-.wb-btn:disabled .wb-btn__sq { background: #8F8F8D; }
-.wb-btn__sq {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  background: #fff;
-  transition: transform .5s var(--ease-landing);
-}
+.wb-btn:hover:not(:disabled) { background: #C8102E; box-shadow: 0 8px 28px -10px rgba(227, 24, 55, .6); }
+.wb-btn:disabled { background: #D3D2CE; color: rgba(11, 11, 12, .45); cursor: not-allowed; }
+.wb-btn__sq { width: 7px; height: 7px; background: currentColor; flex: none; transition: transform .5s cubic-bezier(.2, .7, 0, 1); }
 .wb-btn:hover:not(:disabled) .wb-btn__sq { transform: rotate(90deg) scale(1.25); }
 .wb-btn__lbl { position: relative; display: block; overflow: hidden; height: 1.3em; line-height: 1.3em; }
-.wb-btn__lbl > span { display: block; transition: transform .5s var(--ease-landing); }
-.wb-btn__lbl > span + span { position: absolute; inset: 0; transform: translateY(100%); }
-.wb-btn:hover:not(:disabled) .wb-btn__lbl > span { transform: translateY(-100%); }
-.wb-btn:hover:not(:disabled) .wb-btn__lbl > span + span { transform: none; }
+.wb-btn__lbl span { display: block; transition: transform .5s cubic-bezier(.2, .7, 0, 1); }
+.wb-btn__lbl span + span { position: absolute; inset: 0; transform: translateY(100%); }
+.wb-btn:hover:not(:disabled) .wb-btn__lbl span { transform: translateY(-100%); }
+.wb-btn:hover:not(:disabled) .wb-btn__lbl span + span { transform: none; }
 
-/* Quiet button: hairline outline, ink on hover */
+/* Secondary button */
 .wb-ghost {
-  border: 1px solid rgba(11, 11, 12, .13);
-  background: transparent;
-  border-radius: 2px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 2px;
+  border: 1px solid rgba(11, 11, 12, .22); background: transparent; color: #0B0B0C; font-weight: 520; cursor: pointer;
   transition: border-color .3s, background-color .3s, color .3s;
 }
-.wb-ghost:hover:not(:disabled) { border-color: #0B0B0C; }
+.wb-ghost:hover:not(:disabled) { border-color: #0B0B0C; background: rgba(11, 11, 12, .04); }
+.wb-ghost:disabled { opacity: .4; cursor: not-allowed; }
 
-/* Caption with a red square marker (the landing page's hero label) */
-.wb-cap {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.wb-cap::before { content: ""; width: 7px; height: 7px; background: #E31837; flex: none; }
+/* Mono caption: 11px, uppercase, tracked */
+.wb-cap { font-family: var(--font-mono); font-size: 11px; line-height: 1.4; letter-spacing: .06em; text-transform: uppercase; }
 
-/* Choice cards: border and background ease; a red edge grows from the top when chosen */
-.wb-choice { position: relative; transition: border-color .3s, background-color .3s, color .3s; }
-.wb-choice::after {
-  content: "";
-  position: absolute;
-  left: -1px; top: -1px; bottom: -1px;
-  width: 2px;
-  background: #E31837;
-  transform: scaleY(0);
-  transform-origin: top;
-  transition: transform .5s var(--ease-landing);
+/* Selectable option: flat card, red edge when chosen. Every option of a group looks the same until chosen. */
+.wb-choice {
+  position: relative; text-align: left; background: #fff; border: 1px solid rgba(11, 11, 12, .18); border-radius: 2px;
+  cursor: pointer; transition: border-color .3s, background-color .3s, box-shadow .3s;
 }
-.wb-choice[aria-checked="true"]::after,
-.wb-choice[aria-pressed="true"]::after,
-.wb-choice.is-on::after { transform: scaleY(1); }
+.wb-choice:hover:not(:disabled) { border-color: #0B0B0C; }
+.wb-choice[aria-checked="true"], .wb-choice[aria-pressed="true"], .wb-choice.is-on {
+  border-color: #E31837; background: #fff; box-shadow: inset 3px 0 0 #E31837;
+}
+.wb-choice:disabled { opacity: .4; cursor: not-allowed; }
 
-/* Underline that wipes away on hover, as on landing links */
-.wb-link { position: relative; }
-.wb-link::after {
-  content: "";
-  position: absolute; left: 0; right: 0; bottom: -2px; height: 1px;
-  background: currentColor;
-  transform-origin: right;
-  transition: transform .5s var(--ease-landing);
+/* Text link with the landing page's underline wipe */
+.wb-link {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
 }
+.wb-link::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; transform-origin: right; transition: transform .5s cubic-bezier(.2, .7, 0, 1); }
 .wb-link:hover::after { transform: scaleX(0); }
 
-/* Entrances */
-@keyframes wb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Entrances: a pane rises in, rows and modals follow. All off when the visitor asks for reduced motion. */
+@keyframes wb-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes wb-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes wb-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
-
-.wb-rise { animation: wb-rise .5s var(--ease-landing) both; }
-.wb-pane { animation: wb-rise .7s var(--ease-landing) both; }
-.wb-row { animation: wb-rise .6s var(--ease-landing) both; animation-delay: calc(var(--i, 0) * 45ms + 120ms); }
-.wb-backdrop { animation: wb-fade .35s var(--ease-landing) both; }
-.wb-modal { animation: wb-pop .5s var(--ease-landing) both; }
-
+.wb-pane { animation: wb-rise .6s cubic-bezier(.2, .7, 0, 1) both; }
+.wb-rise { animation: wb-rise .5s cubic-bezier(.2, .7, 0, 1) both; }
+.wb-row { animation: wb-rise .45s cubic-bezier(.2, .7, 0, 1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+.wb-backdrop { animation: wb-fade .3s ease both; }
+.wb-modal { animation: wb-rise .4s cubic-bezier(.2, .7, 0, 1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .wb-pane, .wb-row, .wb-rise, .wb-backdrop, .wb-modal { animation: none; }
-  .wb-btn, .wb-btn *, .wb-choice, .wb-choice::after, .wb-link::after { transition-duration: .001ms !important; }
+  .wb-pane, .wb-rise, .wb-row, .wb-backdrop, .wb-modal { animation: none; }
+  .wb-btn, .wb-btn *, .wb-link::after { transition: none; }
 }
 
-/* Large headline used on the step panels (same scale and tracking as the landing page's section titles) */
-.wb-display {
-  font-size: clamp(32px, 3.4vw, 54px);
-  font-weight: 500;
-  line-height: 1.02;
-  letter-spacing: -.04em;
-}
-
-/* Content that only has room on taller screens (laptops with little height skip it so nothing needs scrolling) */
+/* Only on tall screens: secondary copy that a small laptop can do without */
 .wb-tall-only { display: none; }
 @media (min-height: 800px) { .wb-tall-only { display: block; } }
 
-/* The "upload a CSV" card: ink with a red marker, so the feature stands out next to the plain option */
-.wb-csv-card { position: relative; background: #0B0B0C; color: #F1F0EC; border: 1px solid #0B0B0C; overflow: hidden; }
-.wb-csv-card:hover:not(:disabled) { box-shadow: 0 10px 30px -12px rgba(227, 24, 55, .55); }
-.wb-csv-card[aria-checked="true"] { border-color: #E31837; box-shadow: 0 0 0 1px #E31837; }
+/* Toasts */
+.Toastify__toast { border-radius: 2px !important; font-family: var(--font-sans); font-size: 13px; }

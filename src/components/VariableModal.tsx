@@ -95,8 +95,8 @@ const scalar = (text: string, dtype: string): string | number | boolean => {
 
 const asText = (value: unknown): string => (Array.isArray(value) ? value.map(String).join(', ') : value === undefined || value === null ? '' : String(value));
 
-const FIELD = 'w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm disabled:bg-[#F1F0EC] disabled:text-[#8F8F8D]';
-const LABEL = 'block text-[10px] font-mono text-[#626263] uppercase mb-0.5';
+const FIELD = 'w-full p-1.5 bg-white border border-[#D3D2CE] rounded-xs text-xs focus-techm disabled:bg-[#F1F0EC] disabled:text-[#6B6A66]';
+const LABEL = 'block text-[10px] font-mono text-[#4A4A48] uppercase mb-0.5';
 
 export default function VariableModal({ mode, access, variable, columnNames, transactional, onSave, onClose }: Props) {
   const full = access === 'full';
@@ -237,30 +237,30 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
   const editableKeys = full ? null : new Set(Object.keys(initialParams));
 
   return (
-    <div className="fixed inset-0 wb-backdrop bg-[#0B0B0C]/40 z-50 flex items-center justify-center p-4 backdrop-blur-2xs" role="presentation">
+    <div className="wb-backdrop fixed inset-0 bg-[#0B0B0C]/55 z-50 flex items-center justify-center p-4" role="presentation">
       <form
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
         aria-labelledby="variable-modal-title"
-        className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] w-full max-w-xl max-h-[90vh] flex flex-col"
+        className="wb-modal bg-white border border-[#D3D2CE] rounded-xs shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col"
       >
         <div className="flex items-center justify-between border-b border-[#D3D2CE] px-4 py-3">
           <h3 id="variable-modal-title" className="text-sm font-semibold text-[#0B0B0C]">{title}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-[#626263] hover:text-[#0B0B0C]">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-[#4A4A48] hover:text-[#0B0B0C]">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="px-4 py-3 space-y-3 overflow-y-auto text-xs">
           {locked && (
-            <p className="p-2 rounded-xs bg-[#F1F0EC] border border-[#D3D2CE] text-[#626263]">
+            <p className="p-2 rounded-xs bg-[#F1F0EC] border border-[#D3D2CE] text-[#4A4A48]">
               This variable is defined in the database, so its definition cannot be changed here. Change it there, or delete it.
               You can only move it in the data.
             </p>
           )}
           {access === 'limited' && (
-            <p className="p-2 rounded-xs bg-[#F1F0EC] border border-[#D3D2CE] text-[#626263]">
+            <p className="p-2 rounded-xs bg-[#F1F0EC] border border-[#D3D2CE] text-[#4A4A48]">
               Name, type and generator are fixed for a proposed variable. You can change its description, whether it may be empty and its values.
             </p>
           )}
@@ -289,7 +289,7 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
                 {[...new Set([...ADVANCED, ...(gen && !SIMPLE.has(gen) && !ADVANCED.includes(gen) ? [gen] : [])])].map(g => <option key={g} value={g}>{g}</option>)}
               </optgroup>
             </select>
-            {current && <p className="mt-1 text-[11px] text-[#8F8F8D]">{current.help}</p>}
+            {current && <p className="mt-1 text-[11px] text-[#6B6A66]">{current.help}</p>}
           </div>
 
           {gen === 'formula' && (
@@ -297,7 +297,7 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
               <label className={LABEL} htmlFor="var-formula">Formula</label>
               <input id="var-formula" value={formula} onChange={e => setFormula(e.target.value)} disabled={!full}
                      placeholder="e.g. transaction_amount * 0.02" className={`${FIELD} font-mono`} spellCheck={false} />
-              <p className="mt-1 text-[11px] text-[#8F8F8D]">Use column names with + - * / and min, max, round. The columns it reads are picked up automatically.</p>
+              <p className="mt-1 text-[11px] text-[#6B6A66]">Use column names with + - * / and min, max, round. The columns it reads are picked up automatically.</p>
             </div>
           )}
 
@@ -340,7 +340,7 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
                   const on = dependsOn.includes(c);
                   return (
                     <button type="button" key={c} onClick={() => setDependsOn(prev => (on ? prev.filter(x => x !== c) : [...prev, c]))} aria-pressed={on}
-                            className={`px-1.5 py-0.5 rounded-xs border text-[11px] font-mono cursor-pointer ${on ? 'bg-[#0B0B0C] text-white border-[#0B0B0C]' : 'bg-white text-[#626263] border-[#D3D2CE] hover:border-[#0B0B0C]'}`}>
+                            className={`px-1.5 py-0.5 rounded-xs border text-[11px] font-mono cursor-pointer ${on ? 'bg-[#0B0B0C] text-white border-[#0B0B0C]' : 'bg-white text-[#4A4A48] border-[#D3D2CE] hover:border-[#0B0B0C]'}`}>
                       {c}
                     </button>
                   );
@@ -375,7 +375,7 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
             <label className={LABEL} htmlFor="var-seq">Sequence (optional)</label>
             <input id="var-seq" type="number" min={0} step={1} value={sequence} onChange={e => setSequence(e.target.value)}
                    placeholder="automatic" className={`${FIELD} w-32 font-mono`} />
-            <p className="mt-1 text-[11px] text-[#8F8F8D]">
+            <p className="mt-1 text-[11px] text-[#6B6A66]">
               Leave empty and the model places the column in the story of the data (a customer before its account, a start before its end,
               then each event). A number overrides that: smaller comes first.
             </p>
@@ -385,10 +385,10 @@ export default function VariableModal({ mode, access, variable, columnNames, tra
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[#D3D2CE] px-4 py-3">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs border border-[#D3D2CE] rounded-xs bg-white text-[#626263] cursor-pointer">
+          <button type="button" onClick={onClose} className="wb-ghost h-9 px-4 text-[13px] focus-techm">
             Cancel
           </button>
-          <button type="submit" className="wb-btn h-10 px-4 text-[13px] focus-techm">
+          <button type="submit" className="wb-btn h-9 px-4 text-[13px] focus-techm">
             {mode === 'add' ? 'Add variable' : 'Save changes'}
           </button>
         </div>

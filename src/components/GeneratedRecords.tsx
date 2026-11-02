@@ -62,11 +62,11 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
       )}
 
       {/* The scroll areas below are sized to the visible pane, so their scroll bars stay on screen instead of sitting below the fold */}
-      <div className="bg-white rounded-xs border border-[#D3D2CE] overflow-hidden">
+      <div className="bg-white rounded-xs border border-[#D3D2CE]  overflow-hidden">
         {/* Toolbar: search (downloads are in the right-hand panel) */}
         <div className="p-2.5 border-b border-[#D3D2CE] bg-[#F1F0EC] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Search className="w-3.5 h-3.5 text-[#626263] shrink-0" />
+            <Search className="w-3.5 h-3.5 text-[#4A4A48] shrink-0" />
             <input
               type="text"
               placeholder="Search records..."
@@ -74,7 +74,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
               onChange={e => setSearchQuery(e.target.value)}
               className="bg-white border border-[#D3D2CE] rounded-xs px-2.5 py-1 text-xs text-[#0B0B0C] focus-techm w-52"
             />
-            <span className="text-[11px] text-[#626263] font-mono tabular-nums whitespace-nowrap">
+            <span className="text-[11px] text-[#4A4A48] font-mono tabular-nums whitespace-nowrap">
               {isTransactional
                 ? `${filteredRecords.length.toLocaleString()} / ${allRecords.length.toLocaleString()} users`
                 : `${filteredRecords.length.toLocaleString()} / ${allRecords.length.toLocaleString()} rows`}
@@ -86,7 +86,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
           /* Transactional: one expandable block per user, with that user's history inside */
           <div className="p-2.5 space-y-2 overflow-y-auto max-h-[max(240px,calc(100vh-360px))]">
             {filteredRecords.length === 0 && (
-              <div className="text-xs text-[#626263] italic p-3 rounded-xs border border-[#D3D2CE] bg-[#F1F0EC]/40">
+              <div className="text-xs text-[#4A4A48] italic p-3 rounded-xs border border-[#D3D2CE] bg-[#F1F0EC]/40">
                 No user records match the current search.
               </div>
             )}
@@ -108,7 +108,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
               const historyFields = expanded ? inFieldOrder(Array.from(new Set(history.flatMap(record => Object.keys(record ?? {})))), fields) : [];
 
               return (
-                <div key={`${userKey}_${entityIdx}`} style={{ '--i': Math.min(entityIdx, 12) } as React.CSSProperties} className="wb-row rounded-xs border border-[#D3D2CE] overflow-hidden">
+                <div key={`${userKey}_${entityIdx}`} className="wb-row rounded-xs border border-[#D3D2CE] overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setExpandedUsers(prev => ({ ...prev, [userKey]: !prev[userKey] }))}
@@ -116,11 +116,11 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {expanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-[#626263] shrink-0" />
+                        <ChevronDown className="w-3.5 h-3.5 text-[#4A4A48] shrink-0" />
                       ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-[#626263] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-[#4A4A48] shrink-0" />
                       )}
-                      <span className="text-xs font-medium text-[#0B0B0C] truncate font-mono">{userKey}</span>
+                      <span className="text-xs font-semibold text-[#0B0B0C] truncate font-mono">{userKey}</span>
                     </div>
                     <span className="text-[11px] font-mono text-[#E31837] shrink-0">
                       {history.length} history record{history.length === 1 ? '' : 's'}
@@ -135,7 +135,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                             {entityFields.map(([key, value]) => (
                               <div key={`${userKey}_${key}`} className="rounded-xs border border-[#D3D2CE] bg-white px-2 py-1.5 min-w-0">
-                                <p className="text-[10px] text-[#626263] truncate" title={key}>{key}</p>
+                                <p className="text-[10px] text-[#4A4A48] truncate" title={key}>{key}</p>
                                 <p className="text-[11px] font-mono text-[#0B0B0C] mt-0.5 truncate" title={fmtCell(value)}>{fmtCell(value)}</p>
                               </div>
                             ))}
@@ -146,15 +146,15 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                       <div className="rounded-xs border border-[#D3D2CE] bg-white overflow-hidden">
                         <div className="px-2.5 py-1.5 bg-[#F1F0EC]/60 border-b border-[#D3D2CE]">
                           <p className="text-[11px] font-semibold text-[#0B0B0C]">Recent History</p>
-                          <p className="text-[10px] text-[#626263]">Showing up to {recordsPerUser} records for this user</p>
+                          <p className="text-[10px] text-[#4A4A48]">Showing up to {recordsPerUser} records for this user</p>
                         </div>
 
                         {history.length === 0 ? (
-                          <p className="text-[11px] text-[#626263] italic p-2.5">No history records available for this user.</p>
+                          <p className="text-[11px] text-[#4A4A48] italic p-2.5">No history records available for this user.</p>
                         ) : (
                           <div className="overflow-auto max-h-[max(200px,calc(100vh-520px))]">
                             <table className="w-full text-left text-[11px]">
-                              <thead className="bg-[#F1F0EC] text-[#626263] border-b border-[#D3D2CE] sticky top-0 z-20">
+                              <thead className="bg-[#F1F0EC] text-[#4A4A48] border-b border-[#D3D2CE] sticky top-0 z-20">
                                 <tr>
                                   <th className="px-2 py-1.5 sticky left-0 bg-[#F1F0EC] z-10">#</th>
                                   {historyFields.map(field => (
@@ -168,7 +168,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                               <tbody className="divide-y divide-[#D3D2CE] font-mono text-[#0B0B0C]">
                                 {history.map((record, recIdx) => (
                                   <tr key={`${userKey}__record_${recIdx}`} className="hover:bg-[#F1F0EC]/40 transition-colors">
-                                    <td className="px-2 py-1.5 text-[#626263] font-semibold sticky left-0 bg-white">#{recIdx + 1}</td>
+                                    <td className="px-2 py-1.5 text-[#4A4A48] font-bold sticky left-0 bg-white">#{recIdx + 1}</td>
                                     {historyFields.map(field => {
                                       const value = record?.[field];
                                       const isNull = value === null || value === undefined;
@@ -176,7 +176,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                                         <td
                                           key={`${userKey}__record_${recIdx}_${field}`}
                                           title={fmtCell(value)}
-                                          className={`px-2 py-1.5 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#8F8F8D] italic' : ''}`}
+                                          className={`px-2 py-1.5 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#6B6A66] italic' : ''}`}
                                         >
                                           {fmtCell(value)}
                                         </td>
@@ -209,7 +209,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
           /* Aggregational: one table, one row per record */
           <div className="overflow-auto max-h-[max(240px,calc(100vh-360px))]">
             <table className="w-full text-left text-[11px]">
-              <thead className="bg-[#F1F0EC] text-[#626263] border-b border-[#D3D2CE] sticky top-0 z-20">
+              <thead className="bg-[#F1F0EC] text-[#4A4A48] border-b border-[#D3D2CE] sticky top-0 z-20">
                 <tr>
                   <th className="p-2 sticky left-0 bg-[#F1F0EC] z-10">#</th>
                   {fields.map(f => (
@@ -223,19 +223,19 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
               <tbody className="divide-y divide-[#D3D2CE] font-mono text-[#0B0B0C]">
                 {filteredRecords.length === 0 && (
                   <tr>
-                    <td colSpan={fields.length + 2} className="p-3 text-xs text-[#626263] italic font-sans">
+                    <td colSpan={fields.length + 2} className="p-3 text-xs text-[#4A4A48] italic font-sans">
                       No rows match the current search.
                     </td>
                   </tr>
                 )}
                 {filteredRecords.map((row, idx) => (
-                  <tr key={idx} style={{ '--i': Math.min(idx, 12) } as React.CSSProperties} className="wb-row hover:bg-[#F1F0EC]/40 transition-colors">
-                    <td className="p-2 text-[#626263] font-semibold sticky left-0 bg-white">#{idx + 1}</td>
+                  <tr key={idx} className="hover:bg-[#F1F0EC]/40 transition-colors">
+                    <td className="p-2 text-[#4A4A48] font-bold sticky left-0 bg-white">#{idx + 1}</td>
                     {fields.map(f => {
                       const val = row?.[f];
                       const isNull = val === null || val === undefined;
                       return (
-                        <td key={f} title={fmtCell(val)} className={`p-2 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#8F8F8D] italic' : ''}`}>
+                        <td key={f} title={fmtCell(val)} className={`p-2 whitespace-nowrap max-w-[260px] truncate ${isNull ? 'text-[#6B6A66] italic' : ''}`}>
                           {fmtCell(val)}
                         </td>
                       );
@@ -260,12 +260,12 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
 
       {/* Row JSON modal */}
       {selectedRow && (
-        <div className="wb-backdrop fixed inset-0 z-50 bg-[#0B0B0C]/70 flex items-center justify-center p-4">
-          <div className="wb-modal bg-[#141416] text-white rounded-xs border border-white/20 w-full max-w-3xl max-h-[80vh] flex flex-col shadow-[0_24px_60px_-24px_rgba(11,11,12,.5)] overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-[#141416] text-white rounded-xs border border-white/20 w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-3 border-b border-white/10 flex items-center justify-between bg-[#0B0B0C]">
               <div className="flex items-center gap-2">
                 <FileJson className="w-4 h-4 text-[#E31837]" />
-                <h3 className="text-sm font-semibold text-white">Record JSON</h3>
+                <h3 className="text-sm font-bold text-white">Record JSON</h3>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -283,7 +283,7 @@ export const GeneratedRecords: React.FC<GeneratedRecordsProps> = ({ result }) =>
                 <button
                   type="button"
                   onClick={() => setSelectedRow(null)}
-                  className="px-3 py-1 bg-[#E31837] hover:bg-red-700 text-xs font-semibold text-white rounded-xs transition-colors cursor-pointer"
+                  className="px-3 py-1 bg-[#E31837] hover:bg-red-700 text-xs font-bold text-white rounded-xs transition-colors cursor-pointer"
                 >
                   Close
                 </button>

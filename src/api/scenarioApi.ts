@@ -7,10 +7,42 @@ import type {
   ScenarioGenerateResponse,
   ScenarioProposeRequest,
 } from './types';
+import type { DataType } from './types';
 
 /** Step 1 -> 2: the backend proposes the schema (variables) for the scenario and returns a draft to review. */
 export const proposeScenario = async (body: ScenarioProposeRequest): Promise<ScenarioDraftResponse> =>
   (await api.post<ScenarioDraftResponse>('/scenario/propose', body, { timeout: LONG_TIMEOUT_MS })).data;
+
+/** What /scenario/import-csv needs besides the file: the same scenario fields /scenario/propose takes. */
+export interface ScenarioImportRequest {
+  file: File;
+  requestedScenarioId: string;
+  domain: string;
+  typeOfData: DataType;
+  industryType: string;
+  country: string;
+  businessScenario: string;
+  scenarioType: string;
+  useCase: string;
+  label: string;
+  entityKey?: string | null;
+}
+
+/**
+ * Step 1 -> 2, for a person who brings their own schema: upload a CSV of variable definitions and get back a draft in the same shape
+ * /scenario/propose returns, so the review and approval steps do not care where the schema came from.
+ */
+export async function importScenarioCsv(request: ScenarioImportRequest): Promise<ScenarioDraftResponse> {
+  const { file, entityKey, ...fields } = request;
+  const form = new FormData();
+  form.append('file', file, file.name);
+  for (const [key, value] of Object.entries(fields)) if (value !== undefined && value !== null) form.append(key, String(value));
+  if (entityKey) form.append('entityKey', entityKey);
+  const data = (await api.post<Partial<ScenarioDraftResponse> & Omit<ScenarioDraftResponse, 'variableSources' | 'conceptReport'>>(
+    '/scenario/import-csv', form, { timeout: LONG_TIMEOUT_MS },
+  )).data;
+  return { ...data, variableSources: data.variableSources ?? {}, conceptReport: data.conceptReport ?? null };
+}
 
 /** Step 2 -> 3: approve the draft (with the reviewer's deletions/edits) so it can be generated from. */
 export const confirmScenario = async (body: ScenarioConfirmRequest): Promise<ScenarioConfirmResponse> =>

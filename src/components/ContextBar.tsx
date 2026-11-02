@@ -1,30 +1,24 @@
 import React from 'react';
 
-export interface ContextBarItem {
+export interface ContextItem {
   label: string;
   value: string;
 }
 
-/**
- * The ink strip that tops the schema and generation steps: what was chosen on the first step, read-only,
- * with one way back to change it. It replaces the copy of the whole form that used to sit in a side column.
- */
-export const ContextBar: React.FC<{ items: ContextBarItem[]; onEdit: () => void }> = ({ items, onEdit }) => (
-  <div className="wb-pane col-span-12 bg-[#0B0B0C] text-[#F1F0EC] rounded-xs px-4 py-2 flex items-center gap-x-6 gap-y-2 flex-wrap">
-    <span className="wb-cap text-[#F1F0EC]/60 mr-1">Your scenario</span>
+/** One slim line on Steps 2 and 3 that repeats the choices made in Step 1, with a way back to change them. */
+export const ContextBar: React.FC<{ items: ContextItem[]; onEdit: () => void }> = ({ items, onEdit }) => (
+  <div className="wb-pane col-span-12 bg-[#0B0B0C] text-[#F1F0EC] rounded-xs px-3 py-1.5 flex items-center gap-x-5 gap-y-1 flex-wrap min-h-9">
+    <span className="wb-cap text-[#F1F0EC]/50 flex items-center gap-2">
+      <i className="inline-block w-[6px] h-[6px] bg-[#E31837]" aria-hidden="true" />
+      Your scenario
+    </span>
     {items.map(item => (
-      <div key={item.label} className="min-w-0">
-        <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#F1F0EC]/40">{item.label}</p>
-        <p className="text-[13px] font-medium tracking-[-0.01em] truncate max-w-[22ch]" title={item.value}>
-          {item.value}
-        </p>
-      </div>
+      <span key={item.label} className="flex items-baseline gap-2 min-w-0">
+        <span className="wb-cap text-[#F1F0EC]/45">{item.label}</span>
+        <span className="text-[12px] font-medium truncate max-w-[22ch]" title={item.value}>{item.value}</span>
+      </span>
     ))}
-    <button
-      type="button"
-      onClick={onEdit}
-      className="wb-link ml-auto font-mono text-[11px] uppercase tracking-[0.06em] text-[#F1F0EC] hover:text-[#E31837] transition-colors cursor-pointer focus-techm"
-    >
+    <button type="button" onClick={onEdit} className="wb-link ml-auto text-[#F1F0EC]/75 hover:text-[#F1F0EC] focus-techm">
       Edit
     </button>
   </div>

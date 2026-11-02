@@ -2,7 +2,6 @@ import {createRoot} from 'react-dom/client';
 import {ToastContainer} from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import App from './App.tsx';
-// The fonts (Mona Sans, DM Mono) are declared in index.css and bundled with the app: no external font service.
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
