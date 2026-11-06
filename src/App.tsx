@@ -81,9 +81,11 @@ import VariableModal, { type VariableAccess, type VariableSave } from './compone
 import { getCountries, getScenarioDetail } from './api/catalogApi';
 import { useCatalog } from './hooks/useCatalog';
 import { notify, notifyApiError, type ToastKind } from './lib/notify';
+import { getApiErrorMessage } from './api/client';
 import { getDomainVisual } from './lib/domainVisual';
 import { setting } from './lib/appConfig';
 import { bySequence, toDataField, toDataFields, type DataField } from './lib/schema';
+import { CSV_TEMPLATE, CSV_TEMPLATE_FILE_NAME } from './lib/csvImport';
 import { buildExport, downloadText, exportFileName, EXPORT_MIME, type ExportFormat } from './lib/exportData';
 
 // =========================================================================
@@ -1508,6 +1510,8 @@ export default function App() {
   const [inputMode, setInputMode] = useState<'prompt' | 'import'>('prompt');
   // The CSV chosen when the schema comes from the person's own file.
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  // Set when the server will not take a CSV for this industry (its variables come from registered sources).
+  const [csvNotice, setCsvNotice] = useState<string | null>(null);
   const [importSubOption, setImportSubOption] = useState<'direct' | 'cloud'>('direct');
   const [cloudUri, setCloudUri] = useState('');
   const [promptText, setPromptText] = useState('');
@@ -1710,6 +1714,7 @@ export default function App() {
     setScenarioDetail(null);
     setTypeOfData('');
     setCsvFile(null);
+    setCsvNotice(null);
     setPromptText('');
     setShowPromptInfo(false);
   };
@@ -1923,7 +1928,12 @@ export default function App() {
       setMaxUnlockedStep(1);
       setWorkflowStep(1);
       setStageStatuses({ ...allStagesReady });
-      notifyApiError(error, 'Could not read the CSV.');
+      const message = getApiErrorMessage(error, 'Could not read the CSV.');
+      if (/cannot be defined through csv/i.test(message)) {
+        setCsvNotice(`Your own schema is not available for ${activeIndustry ? industryLabel(activeIndustry.name) : 'this industry'} yet: its variables come from the registered industry sources. Choose "Propose a schema" instead.`);
+      } else {
+        notifyApiError(error, 'Could not read the CSV.');
+      }
     } finally {
       if (turn === pipelineTurn.current) setIsRunningPipeline(false);
     }
@@ -2597,12 +2607,35 @@ export default function App() {
                 )}
 
                 {!activeDomain && catalog.industriesState === 'ready' && visibleIndustries.length > 0 && (
-                  <div className="wb-tall-only mt-6 border-t border-[#D3D2CE] pt-3">
-                    <p className="wb-cap text-[#0B0B0C]/55 mb-2">What happens next</p>
-                    <ol className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-2 text-[13px] leading-snug text-[#0B0B0C]/75">
-                      <li><span className="wb-cap text-[#E31837] mr-2">01</span>Pick a use case and a customer journey.</li>
-                      <li><span className="wb-cap text-[#E31837] mr-2">02</span>Review the schema, proposed for you or uploaded by you.</li>
-                      <li><span className="wb-cap text-[#E31837] mr-2">03</span>Choose a volume, generate and download the data.</li>
+                  <div className="wb-rise mt-5 pt-4 border-t border-[#D3D2CE]">
+                    <p className="wb-cap text-[#0B0B0C]/55">How it works</p>
+                    <p className="mt-1 text-[15px] leading-snug text-[#0B0B0C] max-w-[62ch]">
+                      Pick an industry above to begin. You will not need to write a schema: we propose one for your scenario,
+                      or <span className="font-semibold text-[#E31837]">you can upload your own schema as a CSV</span>.
+                    </p>
+                    <ol className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                      <li className="border-t border-[#0B0B0C]/20 pt-2">
+                        <span className="wb-cap text-[#E31837]">01 · Scenario</span>
+                        <p className="mt-1 text-[13px] leading-snug text-[#0B0B0C]/75">Choose the industry, a use case and a customer journey.</p>
+                      </li>
+                      <li className="border-t-2 border-[#E31837] pt-2">
+                        <span className="wb-cap text-[#E31837]">02 · Schema</span>
+                        <p className="mt-1 text-[13px] leading-snug text-[#0B0B0C]/85">
+                          Let us <span className="font-semibold">propose a schema</span>, or <span className="font-semibold text-[#E31837]">upload your own CSV</span> of
+                          column names and types. You review it either way.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => downloadText(CSV_TEMPLATE_FILE_NAME, CSV_TEMPLATE, 'text/csv;charset=utf-8')}
+                          className="wb-link mt-2 text-[#E31837] focus-techm"
+                        >
+                          Download a sample CSV
+                        </button>
+                      </li>
+                      <li className="border-t border-[#0B0B0C]/20 pt-2">
+                        <span className="wb-cap text-[#E31837]">03 · Generate</span>
+                        <p className="mt-1 text-[13px] leading-snug text-[#0B0B0C]/75">Choose how much data you need, generate it and download it.</p>
+                      </li>
                     </ol>
                   </div>
                 )}
@@ -2757,6 +2790,7 @@ export default function App() {
                           onClick={() => {
                             if (active) return;
                             resetPipeline();
+                            setCsvNotice(null);
                             setInputMode(option.value);
                           }}
                           className="wb-choice p-2.5 text-xs focus-techm"
@@ -2772,10 +2806,23 @@ export default function App() {
                       file={csvFile}
                       onFile={file => {
                         if (csvFile || draft) resetPipeline();
+                        setCsvNotice(null);
                         setCsvFile(file);
                       }}
                       disabled={isPipelineRunning}
                     />
+                  )}
+                  {inputMode === 'import' && csvNotice && (
+                    <div role="alert" ref={el => el?.scrollIntoView({ block: 'nearest' })} className="wb-rise scroll-mb-16 mt-2 border border-[#9C1936]/40 bg-[#9C1936]/5 rounded-xs px-3 py-2 text-[12px] text-[#9C1936] flex items-start justify-between gap-3">
+                      <span>{csvNotice}</span>
+                      <button
+                        type="button"
+                        onClick={() => { resetPipeline(); setCsvNotice(null); setInputMode('prompt'); }}
+                        className="wb-link shrink-0 text-[#9C1936] focus-techm"
+                      >
+                        Propose instead
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
