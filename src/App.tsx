@@ -1436,7 +1436,11 @@ type DownloadFormat = ExportFormat;
 
 /** Domains shown for completeness only: they have no catalog data yet, so they are not loaded from the API and cannot be selected. */
 // Industries offered for now; the rest of the catalog stays on the server and appears here once its pattern is added.
-const ENABLED_INDUSTRIES: RegExp[] = [/telecom/i, /bank/i];
+const ENABLED_INDUSTRIES: RegExp[] = [/telecom/i, /bank/i, /trust/i];
+// Trust & Safety cases come from a policy rulebook on the server: the columns are fixed (no schema upload), and each case can carry a
+// synthetic post written to fit its rule. Post text is limited per run (the same number as TRUST_SAFETY_TEXT_MAX_CASES on the server).
+const TRUST_SAFETY = /trust/i;
+const TRUST_SAFETY_TEXT_MAX = 300;
 // What the person reads for an industry (display only; the catalog name is still what is sent to the API).
 const industryLabel = (name: string): string => (/bank/i.test(name) ? 'BFSI' : name);
 // Greyed-out tiles for industries that are announced but not available. None for now.
@@ -1650,6 +1654,7 @@ export default function App() {
   const [recordsPerUser, setRecordsPerUser] = useState<number | ''>(MAX_RECORDS_PER_USER);
   const [typeOfData, setTypeOfData] = useState<'transactional' | 'aggregational' | ''>('');
   const [randomSeed, setRandomSeed] = useState<number | ''>('');
+  const [includePostText, setIncludePostText] = useState(true);
   const [modalitiesDropdownOpen, setModalitiesDropdownOpen] = useState(false);
   const [seedSectionExpanded, setSeedSectionExpanded] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Hidden by default with side arrow option
@@ -1676,6 +1681,15 @@ export default function App() {
   const recordCountInputId = useId();
   const recordsPerUserInputId = useId();
   const randomSeedInputId = useId();
+  const postTextInputId = useId();
+  const isTrustSafety = TRUST_SAFETY.test(catalog.industries.find(item => item.id === activeDomain)?.name ?? '');
+  // A rulebook industry has no CSV route: its columns are the rulebook's.
+  useEffect(() => {
+    if (isTrustSafety && inputMode !== 'prompt') {
+      setCsvNotice(null);
+      setInputMode('prompt');
+    }
+  }, [isTrustSafety, inputMode]);
 
   // Toast feedback helper (react-toastify)
   const showToast = (msg: string, kind: ToastKind = 'info') => notify(msg, kind);
@@ -2022,6 +2036,10 @@ export default function App() {
       showToast(`The seed must be a whole number from 0 to ${MAX_SEED.toLocaleString()}`, 'error');
       return;
     }
+    if (isTrustSafety && includePostText && volume > TRUST_SAFETY_TEXT_MAX) {
+      showToast(`Post text is written for up to ${TRUST_SAFETY_TEXT_MAX} cases per run. Lower the volume or switch the post text off.`, 'error');
+      return;
+    }
     const plan = planGeneration(volume, confirmed.typeOfData, perUser);
     const turn = pipelineTurn.current;
     setIsExecuting(true);
@@ -2030,7 +2048,7 @@ export default function App() {
     setActiveTab('table');
     try {
       const result = await generateScenario(
-        { draftId: confirmed.draft_id, ...plan, ...(randomSeed !== '' ? { seed: randomSeed } : {}) },
+        { draftId: confirmed.draft_id, ...plan, ...(randomSeed !== '' ? { seed: randomSeed } : {}), ...(isTrustSafety ? { includePostText } : {}) },
         (seconds, attempt) => showToast(`The scenario behaviour is still being designed. Retrying in ${seconds}s (attempt ${attempt})...`)
       );
       if (turn !== pipelineTurn.current) return;
@@ -2294,7 +2312,7 @@ export default function App() {
     { label: 'Journey', value: activeJourney?.name ?? '-' },
     { label: 'Scenario', value: scenarioDetail?.label ?? selectedScenario ?? '-' },
     { label: 'Data', value: typeOfData ? typeOfData.charAt(0).toUpperCase() + typeOfData.slice(1) : '-' },
-    { label: 'Schema from', value: inputMode === 'import' ? 'Your CSV' : 'Proposed' },
+    { label: 'Schema from', value: inputMode === 'import' ? 'Your CSV' : isTrustSafety ? 'Rulebook' : 'Proposed' },
     { label: 'Country', value: countryCode }
   ];
   const stepOneDone: [boolean, boolean, boolean, boolean] = [
@@ -2767,8 +2785,22 @@ export default function App() {
                 </div>
               )}
 
+              {/* Trust & Safety: the rulebook defines the columns, so there is no choice to make here. */}
+              {activeDomain && useCaseId && selectedScenario && isTrustSafety && (
+                <div className="wb-rise col-span-12 lg:col-span-7">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <FileText className="w-3.5 h-3.5 text-[#E31837]" />
+                    <span className="wb-cap text-[#0B0B0C]/65">Schema source</span>
+                  </div>
+                  <p className="text-[12px] text-[#4A4A48]">
+                    Each case is built from the policy rulebook: the rule, a ticket and a post, and the decision, escalation and enforcement action the
+                    rulebook gives. The columns are fixed; you can remove some on the next step. You choose on the last step whether each case also gets a written post.
+                  </p>
+                </div>
+              )}
+
               {/* Schema source: the same two choices, written the same way. Neither is promoted over the other. */}
-              {activeDomain && useCaseId && selectedScenario && (
+              {activeDomain && useCaseId && selectedScenario && !isTrustSafety && (
                 <div className="wb-rise col-span-12 lg:col-span-7">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <FileText className="w-3.5 h-3.5 text-[#E31837]" />
@@ -3548,6 +3580,32 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
                           Up to {MAX_VOLUME.toLocaleString()} {isTransactional ? 'users' : 'rows'} per run.
                         </p>
                       </div>
+
+                      {isTrustSafety && (
+                        <div className="border border-[#D3D2CE] rounded-xs bg-white p-2">
+                          <label htmlFor={postTextInputId} className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              id={postTextInputId}
+                              type="checkbox"
+                              checked={includePostText}
+                              onChange={e => setIncludePostText(e.target.checked)}
+                              className="mt-0.5 accent-[#E31837] focus-techm"
+                            />
+                            <span>
+                              <span className="block text-[11px] font-semibold text-[#4A4A48] uppercase tracking-wider">Write a post for each case</span>
+                              <span className="block text-[10px] text-[#6B6A66] leading-snug mt-0.5">
+                                A synthetic post written to fit the rule. Up to {TRUST_SAFETY_TEXT_MAX} cases per run, and it takes longer. Cases about minors in a sexual
+                                context never get post text; they carry the decision columns only. Switch off for decisions only.
+                              </span>
+                              {includePostText && volume > TRUST_SAFETY_TEXT_MAX && (
+                                <span role="alert" className="block text-[10px] text-[#9C1936] mt-1">
+                                  {volume.toLocaleString()} is more than {TRUST_SAFETY_TEXT_MAX}: lower the volume or switch this off.
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        </div>
+                      )}
 
                       {isTransactional && (
                         <div>

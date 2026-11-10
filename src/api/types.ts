@@ -233,6 +233,8 @@ export interface ScenarioGenerateRequest {
   /** 0..2147483647; with the same seed (and asOf) a run is exactly reproducible */
   seed?: number;
   asOf?: string;
+  /** Trust & Safety only: also write a synthetic post for each case (up to 300 cases per run). false returns the decision columns only. */
+  includePostText?: boolean;
 }
 
 /** Quality report of a generation run; every score is 0..1. */
