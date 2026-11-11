@@ -4,8 +4,8 @@
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type Lenis from 'lenis';
 import './landing.css';
-import logoDark from '../../assets/landing/logos/logo-dark.webp';
-import logoLight from '../../assets/landing/logos/logo-light.webp';
+import logoWhite from '../../assets/brand/modelos-source-white.webp';
+import logoColor from '../../assets/brand/modelos-source-color.webp';
 import { CUSTOMERS, ROWS, STATEMENT } from './data';
 import { media } from './media';
 import { useLandingMotion } from './useLandingMotion';
@@ -157,9 +157,9 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
   return (
     <div className="ml" ref={rootRef}>
       <header className="nav" data-nav>
-        <button type="button" className="nav__brand" onClick={toTop} aria-label="ModelOS Source, powered by Tech Mahindra">
-          <img className="nav__logo nav__logo--dark" src={logoDark} alt="" width={720} height={143} />
-          <img className="nav__logo nav__logo--light" src={logoLight} alt="" width={720} height={143} />
+        <button type="button" className="nav__brand" onClick={toTop} aria-label="ModelOS Source by Navixus">
+          <img className="nav__logo nav__logo--dark" src={logoWhite} alt="" width={1600} height={169} />
+          <img className="nav__logo nav__logo--light" src={logoColor} alt="" width={1600} height={168} />
         </button>
         <WorkspaceButton nav onClick={onOpenWorkspace} />
       </header>
@@ -342,7 +342,7 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
       </main>
 
       <footer className="s-dark foot" data-theme="dark">
-        <img className="foot__logo" src={logoDark} alt="ModelOS Source, powered by Tech Mahindra" width={720} height={143} />
+        <img className="foot__logo" src={logoWhite} alt="ModelOS Source by Navixus" width={1600} height={169} />
         <p className="t-meta mute-3">© 2026 Tech Mahindra</p>
       </footer>
     </div>

@@ -68,7 +68,7 @@ html.lenis-stopped{overflow:hidden}
 .ml .nav::before{content:"";position:absolute;inset:0 0 -24px;background:linear-gradient(rgba(11,11,12,.7),rgba(11,11,12,0));pointer-events:none;transition:opacity .5s}
 .ml .nav.is-light::before{opacity:0}
 .ml .nav>*{position:relative}
-.ml .nav__brand{position:relative;display:block;height:clamp(32px,3.4vw,48px);aspect-ratio:720/143}
+.ml .nav__brand{position:relative;display:block;height:clamp(24px,2.5vw,36px);aspect-ratio:1600/169}
 .ml .nav__logo{position:absolute;inset:0;width:100%;height:100%;transition:opacity .45s var(--ease)}
 .ml .nav__logo--light{opacity:0}
 .ml .nav.is-light .nav__logo--light{opacity:1}
@@ -228,7 +228,7 @@ html.lenis-stopped{overflow:hidden}
 
 /* ---------- footer ---------- */
 .ml .foot{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:40px var(--pad) 44px;border-top:1px solid var(--hair-d)}
-.ml .foot__logo{height:40px;width:auto}
+.ml .foot__logo{height:34px;width:auto;max-width:100%}
 @media (max-width:600px){.ml .foot{flex-direction:column;align-items:flex-start}}
 
 /* ---------- utilities used by reveals ---------- */
