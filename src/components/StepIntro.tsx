@@ -17,7 +17,7 @@ export const StepIntro: React.FC<StepIntroProps> = ({ done }) => {
           <i className="inline-block w-[7px] h-[7px] bg-[#E31837]" aria-hidden="true" />
           Step 01 of 03
         </p>
-        <h2 className="mt-3 font-medium tracking-[-0.03em] leading-[1.05] text-[clamp(22px,2.1vw,30px)]">
+        <h2 className="mt-3 font-medium tracking-[-0.012em] leading-[1.05] text-[clamp(22px,2.1vw,30px)]">
           Choose the industry and the story behind your data.
         </h2>
         <p className="wb-tall-only mt-3 text-[13px] leading-relaxed text-[#F1F0EC]/60">

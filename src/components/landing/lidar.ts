@@ -149,7 +149,7 @@ const drawHud = (g: CanvasRenderingContext2D, cw: number, ch: number, v: View, c
   g.moveTo(x1, y1 - L2); g.lineTo(x1, y1); g.lineTo(x1 - L2, y1);
   g.moveTo(x0 + L2, y1); g.lineTo(x0, y1); g.lineTo(x0, y1 - L2);
   g.stroke();
-  g.font = '500 10.5px "DM Mono", monospace';
+  g.font = '500 10.5px "Georama", sans-serif';
   g.fillStyle = '#F1F0EC';
   g.fillText('VEGETATION · INSIDE CLEARANCE', x1 + 10, y0 + 10);
   g.fillStyle = 'rgba(241,240,236,.55)';

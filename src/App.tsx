@@ -2309,9 +2309,9 @@ export default function App() {
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#F1F0EC] text-[#0B0B0C] font-sans select-none">
       {/* =========================================================================
-          TOP BAR (48px, ink). The step navigation lives here, so the workspace has one thin bar and not two stacked ones.
+          TOP BAR (48px, white). The step navigation lives here, so the workspace has one thin bar and not two stacked ones.
           ========================================================================= */}
-      <header className="h-12 min-h-12 bg-[#0B0B0C] text-[#F1F0EC] border-b border-white/10 px-3 sm:px-4 flex items-center gap-2 sm:gap-4 z-20">
+      <header className="h-12 min-h-12 bg-white text-[#0B0B0C] border-b border-[#D3D2CE] px-3 sm:px-4 flex items-center gap-2 sm:gap-4 z-20">
         <h1 className="sr-only">ModelOS Source - Synthetic Data Generator</h1>
         <BrandHeader />
 
@@ -2327,7 +2327,7 @@ export default function App() {
               const done = maxUnlockedStep > step.n;
               return (
                 <React.Fragment key={step.n}>
-                  {i > 0 && <span className="hidden md:block self-center w-5 lg:w-8 h-px bg-white/15" aria-hidden="true" />}
+                  {i > 0 && <span className="hidden md:block self-center w-5 lg:w-8 h-px bg-[#0B0B0C]/15" aria-hidden="true" />}
                   <button
                     type="button"
                     onClick={() => {
@@ -2339,7 +2339,7 @@ export default function App() {
                     title={unlocked ? undefined : 'Locked until the earlier step is done'}
                     className={`group relative px-2 sm:px-3 flex items-center gap-2 transition-colors focus-techm ${
                       unlocked ? 'cursor-pointer' : 'cursor-not-allowed'
-                    } ${current ? 'text-[#F1F0EC]' : unlocked ? 'text-[#F1F0EC]/70 hover:text-[#F1F0EC]' : 'text-[#F1F0EC]/35'}`}
+                    } ${current ? 'text-[#0B0B0C]' : unlocked ? 'text-[#0B0B0C]/65 hover:text-[#0B0B0C]' : 'text-[#0B0B0C]/35'}`}
                   >
                     <span className={`wb-cap ${current ? 'text-[#E31837]' : ''}`}>{String(step.n).padStart(2, '0')}</span>
                     <span className="hidden sm:inline text-[14px] font-medium tracking-[-0.01em]">{step.label}</span>
@@ -2366,12 +2366,12 @@ export default function App() {
                     setWorkflowStep(1);
                     showToast('Reset workflow to Step 1');
                   }}
-                  className="wb-link text-[#F1F0EC]/70 hover:text-[#F1F0EC] focus-techm"
+                  className="wb-link text-[#0B0B0C]/70 hover:text-[#0B0B0C] focus-techm"
                 >
                   Reset steps
                 </button>
               )}
-              <span className="wb-cap text-[#F1F0EC]/50 hidden sm:inline">Step {workflowStep} of 3</span>
+              <span className="wb-cap text-[#0B0B0C]/55 hidden sm:inline">Step {workflowStep} of 3</span>
             </>
           )}
         </div>
@@ -2386,14 +2386,14 @@ export default function App() {
           sidebarCollapsed
             ? 'w-0 min-w-0 opacity-0 overflow-hidden pointer-events-none'
             : 'w-[64px] min-w-[64px]'
-        } bg-[#0B0B0C] text-[#F1F0EC] flex flex-col items-center py-2 justify-between z-10 transition-all duration-300 relative shrink-0`}>
+        } bg-white text-[#0B0B0C] border-r border-[#D3D2CE] flex flex-col items-center py-2 justify-between z-10 transition-all duration-300 relative shrink-0`}>
           <div className="flex flex-col items-center gap-1 w-full">
             <button
               type="button"
               onClick={() => setSidebarCollapsed(true)}
               title="Hide side panel"
               aria-label="Hide side panel"
-              className="w-full h-6 flex items-center justify-center text-[#F1F0EC]/60 hover:text-[#E31837] transition-colors cursor-pointer border-b border-white/10 focus-techm"
+              className="w-full h-6 flex items-center justify-center text-[#0B0B0C]/60 hover:text-[#E31837] transition-colors cursor-pointer border-b border-[#0B0B0C]/10 focus-techm"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
@@ -2403,12 +2403,12 @@ export default function App() {
               onClick={() => setCurrentView('frontpage')}
               title="Back to the ModelOS Source home page"
               aria-label="Front Page"
-              className="w-full h-11 flex flex-col items-center justify-center relative focus-techm transition-colors cursor-pointer text-[#F1F0EC]/65 hover:text-[#F1F0EC] hover:bg-white/5"
+              className="w-full h-11 flex flex-col items-center justify-center relative focus-techm transition-colors cursor-pointer text-[#0B0B0C]/65 hover:text-[#0B0B0C] hover:bg-[#0B0B0C]/5"
             >
               <FlaskConical className="w-4 h-4" />
               <span className="wb-cap text-[9px] mt-0.5">Home</span>
             </button>
-            <div className="w-8 h-px bg-white/10 my-0.5" />
+            <div className="w-8 h-px bg-[#0B0B0C]/10 my-0.5" />
 
             <button
               type="button"
@@ -2416,7 +2416,7 @@ export default function App() {
               title="Workbench: scenario, schema and data generation"
               aria-label="Workbench"
               className={`w-full h-12 flex flex-col items-center justify-center relative focus-techm transition-colors cursor-pointer ${
-                activeNav === 'workbench' ? 'text-[#F1F0EC] bg-white/5' : 'text-[#F1F0EC]/65 hover:text-[#F1F0EC] hover:bg-white/5'
+                activeNav === 'workbench' ? 'text-[#0B0B0C] bg-[#0B0B0C]/5' : 'text-[#0B0B0C]/65 hover:text-[#0B0B0C] hover:bg-[#0B0B0C]/5'
               }`}
             >
               {activeNav === 'workbench' && <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-[#E31837]" />}
@@ -2433,7 +2433,7 @@ export default function App() {
               onClick={() => setSidebarCollapsed(false)}
               title="Show side navigation"
               aria-label="Show side navigation"
-              className="h-14 w-4 bg-[#0B0B0C] rounded-r-xs flex items-center justify-center text-[#F1F0EC] hover:text-[#E31837] transition-colors cursor-pointer focus-techm"
+              className="h-14 w-4 bg-white border border-l-0 border-[#D3D2CE] rounded-r-xs flex items-center justify-center text-[#0B0B0C] hover:text-[#E31837] transition-colors cursor-pointer focus-techm"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -2889,7 +2889,7 @@ export default function App() {
               {workflowStep === 2 && (
                 <div className="mb-3">
                   <p className="wb-cap text-[#E31837]">Step 02 of 03</p>
-                  <h2 className="mt-1 text-[26px] font-medium tracking-[-0.03em] leading-[1.05]">Review the variables we will generate.</h2>
+                  <h2 className="mt-1 text-[26px] font-medium tracking-[-0.012em] leading-[1.05]">Review the variables we will generate.</h2>
                   <p className="wb-tall-only mt-1.5 text-[13px] text-[#4A4A48] max-w-[70ch]">
                     {draft?.variables && inputMode === 'import'
                       ? 'These come from your CSV. Remove or add variables, then approve.'
@@ -3472,7 +3472,7 @@ class TelecomSyntheticSchema(pa.DataFrameModel):
               {!generated && (
                 <div>
                   <p className="wb-cap text-[#E31837]">Step 03 of 03</p>
-                  <h2 className="mt-1 text-[22px] font-medium tracking-[-0.03em] leading-[1.08]">Choose how much data to generate.</h2>
+                  <h2 className="mt-1 text-[22px] font-medium tracking-[-0.012em] leading-[1.08]">Choose how much data to generate.</h2>
                 </div>
               )}
               {/* Selected Modalities Status Indicator */}

@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
-/* Fonts: the same files the landing page uses (Mona Sans variable, DM Mono, Noto Sans for the Indic scripts). */
-@font-face{font-family:'Mona Sans';font-style:normal;font-weight:200 900;font-stretch:75% 125%;font-display:swap;src:url(./assets/landing/fonts/mona-sans.woff2) format('woff2')}
-@font-face{font-family:'DM Mono';font-style:normal;font-weight:400;font-display:swap;src:url(./assets/landing/fonts/dm-mono-400.woff2) format('woff2')}
-@font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/dm-mono-500.woff2) format('woff2')}
+/* One typeface everywhere: Georama (variable, weight 100-900, width 75-125%; Latin subset, SIL Open Font License, see assets/landing/fonts/OFL-Georama.txt).
+   Noto Sans stays only as the fallback for the Indian scripts in the landing page's language demo, which Georama does not cover. */
+@font-face{font-family:'Georama';font-style:normal;font-weight:100 900;font-stretch:75% 125%;font-display:swap;src:url(./assets/landing/fonts/georama.woff) format('woff')}
+@font-face{font-family:'Georama';font-style:italic;font-weight:100 900;font-stretch:75% 125%;font-display:swap;src:url(./assets/landing/fonts/georama-italic.woff) format('woff')}
 @font-face{font-family:'Noto Sans Devanagari';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/noto-sans-devanagari-500.woff2) format('woff2')}
 @font-face{font-family:'Noto Sans Tamil';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/noto-sans-tamil-500.woff2) format('woff2')}
 @font-face{font-family:'Noto Sans Bengali';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/landing/fonts/noto-sans-bengali-500.woff2) format('woff2')}
 
 /* Same design tokens as the landing page: ink #0B0B0C, paper #F1F0EC, signal #E31837, hairlines at 13% ink. */
 @theme static {
-  --font-sans: 'Mona Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-sans: 'Georama', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Georama', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;   /* Georama for data and code too; tabular figures keep columns aligned */
   --ease-landing: cubic-bezier(.2, .7, 0, 1);
   --default-transition-duration: .35s;
   --default-transition-timing-function: cubic-bezier(.2, .7, 0, 1);
 }
 
 @layer base {
+  .font-mono, code, pre, kbd, samp, table { font-variant-numeric: tabular-nums; }
   body {
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
     color: #0B0B0C;
     background-color: #F1F0EC;
     -webkit-font-smoothing: antialiased;

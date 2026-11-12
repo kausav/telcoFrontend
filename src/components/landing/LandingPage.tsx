@@ -158,8 +158,8 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
     <div className="ml" ref={rootRef}>
       <header className="nav" data-nav>
         <button type="button" className="nav__brand" onClick={toTop} aria-label="ModelOS Source by Navixus">
-          <img className="nav__logo nav__logo--dark" src={logoWhite} alt="" width={1600} height={169} />
-          <img className="nav__logo nav__logo--light" src={logoColor} alt="" width={1600} height={168} />
+          <img className="nav__logo nav__logo--dark" src={logoWhite} alt="" width={341} height={48} />
+          <img className="nav__logo nav__logo--light" src={logoColor} alt="" width={341} height={48} />
         </button>
         <WorkspaceButton nav onClick={onOpenWorkspace} />
       </header>
@@ -342,7 +342,7 @@ const LandingPageView = ({ onOpenWorkspace, wide }: LandingPageProps & { wide: b
       </main>
 
       <footer className="s-dark foot" data-theme="dark">
-        <img className="foot__logo" src={logoWhite} alt="ModelOS Source by Navixus" width={1600} height={169} />
+        <img className="foot__logo" src={logoWhite} alt="ModelOS Source by Navixus" width={341} height={48} />
         <p className="t-meta mute-3">© 2026 Tech Mahindra</p>
       </footer>
     </div>
